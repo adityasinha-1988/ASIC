@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI & Soft Computing - Interactive Portal</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts (Orbitron for sci-fi look, Inter for readability) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        orbitron: ['Orbitron', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-color': '#020617', // Very dark slate (background)
+                        'secondary-color': '#1e293b', // Card/Footer backgrounds
+                        'accent-color': '#38bdf8', // Bright Cyan for borders/highlights
+                        'accent-glow': '#0ea5e9',
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 10px rgba(56, 189, 248, 0.2)' },
+                            '50%': { boxShadow: '0 0 20px rgba(56, 189, 248, 0.6)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #020617;
+            color: #f8fafc;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+        }
+        
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(56, 189, 248, 0.5);
+            box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.3);
+            background: rgba(30, 41, 59, 0.8);
+        }
+
+        .cyber-text {
+            background: linear-gradient(to right, #38bdf8, #818cf8, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .footer-icon {
+            transition: all 0.3s ease;
+            color: #94a3b8;
+        }
+        .footer-icon:hover {
+            color: #38bdf8;
+            transform: translateY(-3px) scale(1.1);
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+
+        /* Staggered entry delays */
+        .delay-1 { animation-delay: 100ms; }
+        .delay-2 { animation-delay: 200ms; }
+        .delay-3 { animation-delay: 300ms; }
+        .delay-4 { animation-delay: 400ms; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col font-sans selection:bg-accent-color selection:text-white">
+
+    <nav class="relative z-20 border-b border-white/10 bg-primary-color/80 backdrop-blur-md sticky top-0">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-accent-color to-emerald-500 flex items-center justify-center text-white font-orbitron font-bold text-2xl shadow-lg shadow-accent-color/30">
+                        AI
+                    </div>
+                    <div>
+                        <span class="font-orbitron font-bold text-2xl tracking-wider text-white cyber-text">AISC NEXUS</span>
+                        <span class="text-xs text-slate-400 block tracking-widest uppercase mt-0.5 font-medium">B.Tech Interactive Portal</span>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center gap-4">
+                    <div class="bg-secondary-color/50 px-4 py-2 rounded-full border border-accent-color/20 flex items-center gap-3 animate-pulse-glow">
+                        <i class="fa-solid fa-chalkboard-user text-accent-color"></i>
+                        <span class="text-sm font-medium text-slate-200">Instructor Mode Active</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
+        
+        <!-- Header / Hero Section -->
+        <div class="text-center mb-16 opacity-0 animate-fade-in-up">
+            <h1 class="text-4xl md:text-5xl lg:text-6xl font-orbitron font-bold tracking-tight mb-6">
+                Artificial Intelligence <br class="hidden md:block" />
+                <span class="cyber-text">& Soft Computing</span>
+            </h1>
+            <p class="max-w-3xl mx-auto text-lg text-slate-400 leading-relaxed">
+                Welcome to the central hub for all interactive algorithm visualizers. Access search strategies, optimization techniques, and game-playing agents directly from this unified dashboard.
+            </p>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="mb-10 flex flex-wrap gap-3 justify-center opacity-0 animate-fade-in-up delay-1">
+            <button class="filter-btn px-6 py-2.5 rounded-full text-sm font-bold tracking-wider uppercase transition-all bg-accent-color text-primary-color shadow-[0_0_15px_rgba(56,189,248,0.4)]" data-filter="all">All Modules</button>
+            <button class="filter-btn px-6 py-2.5 rounded-full text-sm font-bold tracking-wider uppercase transition-all bg-secondary-color text-slate-300 border border-white/10 hover:border-accent-color/50" data-filter="search">Search</button>
+            <button class="filter-btn px-6 py-2.5 rounded-full text-sm font-bold tracking-wider uppercase transition-all bg-secondary-color text-slate-300 border border-white/10 hover:border-accent-color/50" data-filter="optimization">Optimization</button>
+            <button class="filter-btn px-6 py-2.5 rounded-full text-sm font-bold tracking-wider uppercase transition-all bg-secondary-color text-slate-300 border border-white/10 hover:border-accent-color/50" data-filter="games">Games & Logic</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="portalGrid">
+            
+            <!-- Card 1: Uninformed Search -->
+            <a href="ai_UnInformed_search_visualizer.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-1" data-category="search">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-5 border border-blue-500/20 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-network-wired text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-blue-400 transition-colors">Uninformed Search</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Visualize basic pathfinding algorithms like BFS, DFS, UCS without heuristic guidance.</p>
+                    <div class="flex items-center text-sm font-bold text-blue-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 2: Informed Search -->
+            <a href="InformedSearch.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-2" data-category="search">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-5 border border-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-lightbulb text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-emerald-400 transition-colors">Informed Search</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Interactive A* (A-Star) and Greedy Best-First Search implementations using heuristics.</p>
+                    <div class="flex items-center text-sm font-bold text-emerald-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 3: AO* Search -->
+            <a href="ao.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-3" data-category="search">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-5 border border-purple-500/20 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-diagram-project text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-purple-400 transition-colors">AO* Search</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">AND-OR graph search visualizer for solving problem-reduction scenarios.</p>
+                    <div class="flex items-center text-sm font-bold text-purple-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 4: Block World -->
+            <a href="BlockWorld.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-4" data-category="logic">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-5 border border-teal-500/20 group-hover:bg-teal-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-cubes text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-teal-400 transition-colors">Block World</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Drag and drop simulation of the classic AI planning problem with heuristic scoring.</p>
+                    <div class="flex items-center text-sm font-bold text-teal-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 5: Hill Climbing -->
+            <a href="hillClimb.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-1" data-category="optimization">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center mb-5 border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-mountain text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">Hill Climbing</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Basic local search algorithm demonstration showing the local maxima problem.</p>
+                    <div class="flex items-center text-sm font-bold text-orange-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 6: Hill Climbing Variants -->
+            <a href="HillClimbingVariants.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-2" data-category="optimization">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-5 border border-amber-500/20 group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-sliders text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-amber-400 transition-colors">Hill Climb Variants</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Explore Stochastic, First-choice, and Random-restart variations in 3D.</p>
+                    <div class="flex items-center text-sm font-bold text-amber-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 7: Hill Climb Quest -->
+            <a href="HillClimbQuest.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-3" data-category="optimization">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-yellow-500/10 text-yellow-400 flex items-center justify-center mb-5 border border-yellow-500/20 group-hover:bg-yellow-500 group-hover:text-slate-900 transition-all duration-300">
+                        <i class="fa-solid fa-map-location-dot text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-yellow-400 transition-colors">Hill Climb Quest</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">An interactive gamified scenario based on the Hill Climbing algorithm mechanics.</p>
+                    <div class="flex items-center text-sm font-bold text-yellow-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 8: Simulated Annealing -->
+            <a href="SimulatedAnnealing.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-4" data-category="optimization">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-5 border border-red-500/20 group-hover:bg-red-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-fire text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-red-400 transition-colors">Simulated Annealing</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Live 3D visualizer showing how temperature affects probability of bad moves.</p>
+                    <div class="flex items-center text-sm font-bold text-red-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 9: Annealing Bad Moves -->
+            <a href="Annealing_Badmoves.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-1" data-category="optimization">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center mb-5 border border-rose-500/20 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-chart-line text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-rose-400 transition-colors">Annealing Bad Moves</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Detailed mathematical breakdown of accepting worse states over time.</p>
+                    <div class="flex items-center text-sm font-bold text-rose-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 10: N-Queens Simulated Annealing -->
+            <a href="NQueens_Simulated.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-2" data-category="optimization">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center mb-5 border border-pink-500/20 group-hover:bg-pink-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-chess-queen text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-pink-400 transition-colors">N-Queens SA</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Solving the 8-Queens problem mapped dynamically to a 3D optimization landscape.</p>
+                    <div class="flex items-center text-sm font-bold text-pink-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 11: Alpha Beta -->
+            <a href="alpha_beta_tree_tracer.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-3" data-category="games">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-5 border border-cyan-500/20 group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-scissors text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-cyan-400 transition-colors">Alpha-Beta Pruning</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Interactive game tree showing exactly how and why nodes are pruned to save time.</p>
+                    <div class="flex items-center text-sm font-bold text-cyan-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 12: Tic Tac Toe -->
+            <a href="tictactoe.html" target="_blank" class="portal-card block group opacity-0 animate-fade-in-up delay-4" data-category="games">
+                <div class="glass-card rounded-2xl p-6 h-full flex flex-col relative overflow-hidden">
+                    <div class="w-14 h-14 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-5 border border-indigo-500/20 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                        <i class="fa-solid fa-gamepad text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-orbitron font-bold text-white mb-3 group-hover:text-indigo-400 transition-colors">Tic-Tac-Toe Minimax</h3>
+                    <p class="text-sm text-slate-400 mb-6 flex-grow leading-relaxed">Play against an unbeatable AI powered by the exhaustive Minimax algorithm.</p>
+                    <div class="flex items-center text-sm font-bold text-indigo-400 mt-auto group-hover:translate-x-2 transition-transform">
+                        Launch <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+        </div>
+    </main>
+
+    <!-- USER SPECIFIED FOOTER HTML -->
+    <footer class="bg-secondary-color/30 text-gray-400 text-center p-6 mt-8 border-t border-accent-color/20 w-full backdrop-blur-sm z-20">
+        <div class="container mx-auto">
+            <div class="mb-4">
+                <h3 class="text-xl font-orbitron text-white">Dr. Aditya Sinha</h3>
+                <p class="text-sm text-gray-500">Assistant Professor, CSE | SCSE, Manipal University Jaipur</p>
+            </div>
+            
+            <div class="flex justify-center items-center space-x-6 my-4">
+                <a href="https://sites.google.com/view/dradityasinha/" target="_blank" class="footer-icon text-2xl" title="Personal Website"><i class="fas fa-globe"></i></a>
+                <a href="https://scholar.google.com/citations?user=EXsHpqgAAAAJ&hl=en" target="_blank" class="footer-icon text-2xl" title="Google Scholar"><i class="fas fa-graduation-cap"></i></a>
+                <a href="https://www.linkedin.com/in/dr-aditya-sinha-13261416/" target="_blank" class="footer-icon text-2xl" title="LinkedIn"><i class="fab fa-linkedin"></i></a>
+                <a href="https://github.com/adityasinha-1988" target="_blank" class="footer-icon text-2xl" title="GitHub"><i class="fab fa-github"></i></a>
+                <a href="https://www.researchgate.net/profile/Aditya-Sinha-4" target="_blank" class="footer-icon text-2xl" title="ResearchGate"><i class="fab fa-researchgate"></i></a>
+                <a href="https://www.scopus.com/authid/detail.uri?authorId=57217754738" target="_blank" class="footer-icon text-2xl" title="Scopus"><i class="fas fa-file-alt"></i></a>
+            </div>
+            
+            <p class="font-light text-xs text-gray-600 mt-4">&copy; 2025 COA + VAK Learning Nexus. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            const portalCards = document.querySelectorAll('.portal-card');
+
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Reset all buttons styling
+                    filterBtns.forEach(b => {
+                        b.classList.remove('bg-accent-color', 'text-primary-color', 'shadow-[0_0_15px_rgba(56,189,248,0.4)]');
+                        b.classList.add('bg-secondary-color', 'text-slate-300', 'border-white/10');
+                    });
+                    
+                    // Activate clicked button styling
+                    btn.classList.add('bg-accent-color', 'text-primary-color', 'shadow-[0_0_15px_rgba(56,189,248,0.4)]');
+                    btn.classList.remove('bg-secondary-color', 'text-slate-300', 'border-white/10');
+
+                    const filterValue = btn.getAttribute('data-filter');
+
+                    // Filter logic
+                    portalCards.forEach(card => {
+                        const category = card.getAttribute('data-category');
+                        
+                        if (filterValue === 'all' || category === filterValue || (filterValue === 'games' && category === 'logic')) {
+                            card.style.display = 'block';
+                            // Re-trigger animation
+                            card.classList.remove('animate-fade-in-up');
+                            void card.offsetWidth; // trigger reflow
+                            card.classList.add('animate-fade-in-up');
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+            });
+
+            // Remove initial staggering delays after first load so filtering is fast
+            setTimeout(() => {
+                portalCards.forEach(card => {
+                    card.classList.remove('delay-1', 'delay-2', 'delay-3', 'delay-4');
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
