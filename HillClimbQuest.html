@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hill Climbing: Local Search Traps</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #0f172a; margin-bottom: 5px; text-align: center; }
+        
+        /* Tab Styling */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            background-color: #e2e8f0;
+            color: #475569;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active { background-color: #0284c7; color: white; }
+        .tab-content { display: none; width: 100%; max-width: 1000px; }
+        .tab-content.active { display: block; }
+
+        .question-box {
+            background: #e0f2fe;
+            border-left: 5px solid #0284c7;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+            font-size: 15px;
+            color: #0c4a6e;
+        }
+
+        .container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+        
+        .controls {
+            background: white; padding: 15px 20px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); width: 100%;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .action-btn {
+            padding: 10px 20px; background-color: #3b82f6; color: white;
+            border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
+        }
+        .action-btn:disabled { background-color: #cbd5e1; cursor: not-allowed; }
+
+        /* Shared Graph Panel */
+        .graph-panel {
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1.5;
+            position: relative; min-height: 500px; min-width: 450px;
+        }
+        
+        /* Tree Specific */
+        #svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        line { stroke: #94a3b8; stroke-width: 2; transition: all 0.3s; }
+        .line-active { stroke: #eab308; stroke-width: 4; }
+        .tree-node {
+            position: absolute; padding: 10px 15px; border-radius: 8px;
+            background-color: #f1f5f9; border: 2px solid #94a3b8;
+            font-weight: bold; text-align: center; z-index: 2;
+            transform: translate(-50%, -50%); transition: all 0.3s;
+        }
+        .tree-node span { display: block; font-size: 12px; color: #475569; }
+
+        /* 8-Puzzle Specific */
+        .puzzle-node {
+            position: absolute; background-color: #f1f5f9; border: 3px solid #94a3b8;
+            border-radius: 8px; padding: 10px; text-align: center; z-index: 2;
+            transform: translate(-50%, -50%); transition: all 0.3s;
+        }
+        .puzzle-grid {
+            display: grid; grid-template-columns: repeat(3, 25px); gap: 2px;
+            background-color: #334155; padding: 2px; margin: 5px auto;
+        }
+        .tile { background-color: white; display: flex; justify-content: center; align-items: center; font-size: 12px; font-weight: bold; height: 25px;}
+        .tile.empty { background-color: #cbd5e1; }
+        .tile.misplaced { color: #ef4444; background-color: #fee2e2; }
+
+        /* Shared States */
+        .active-node { background-color: #fde047; border-color: #eab308; box-shadow: 0 0 10px rgba(234, 179, 8, 0.5); }
+        .evaluated { background-color: #bfdbfe; border-color: #3b82f6; }
+        .trapped { background-color: #fca5a5; border-color: #ef4444; color: white; }
+
+        /* Hardcoded Positions - Tree */
+        #t-A { top: 15%; left: 50%; }
+        #t-B { top: 40%; left: 25%; }
+        #t-C { top: 40%; left: 50%; }
+        #t-D { top: 40%; left: 75%; }
+        #t-E { top: 70%; left: 15%; }
+        #t-F { top: 70%; left: 35%; }
+        #t-G { top: 70%; left: 50%; }
+        #t-H { top: 70%; left: 65%; }
+        #t-I { top: 90%; left: 25%; background-color: #d1fae5; border-color: #10b981;} 
+        #t-J { top: 90%; left: 45%; }
+
+        /* Hardcoded Positions - Puzzle */
+        #p-S { top: 20%; left: 50%; }
+        #p-A { top: 60%; left: 25%; }
+        #p-B { top: 60%; left: 75%; }
+        #p-C { top: 90%; left: 60%; }
+        #p-D { top: 90%; left: 90%; }
+
+        .log-panel {
+            background: #1e293b; color: #f8fafc; padding: 20px; border-radius: 12px;
+            flex: 1; min-width: 300px; font-family: monospace; font-size: 14px;
+            max-height: 500px; overflow-y: auto;
+        }
+        .log-entry { margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .hl-green { color: #4ade80; } .hl-red { color: #f87171; } .hl-blue { color: #38bdf8; }
+    </style>
+</head>
+<body>
+
+    <h1>🧗 AI Local Search: The Greedy Traps</h1>
+    
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('tree-tab')">1. State-Space Tree</button>
+        <button class="tab-btn" onclick="switchTab('puzzle-tab')">2. The 8-Puzzle Trap</button>
+    </div>
+
+    <!-- TAB 1: TREE -->
+    <div id="tree-tab" class="tab-content active">
+        <div class="question-box">
+            <strong>📝 Steepest-Ascent:</strong> The AI aims to <strong>MAXIMIZE</strong> the heuristic <strong>h(n)</strong>. Watch it greedily move to Node C, completely missing the Global Maximum at Node I.
+        </div>
+        <div class="container">
+            <div class="controls">
+                <button class="action-btn" onclick="t_reset()">Reset Trace</button>
+                <div>Step: <span id="t-step">0</span></div>
+                <button class="action-btn" id="t-next" onclick="t_nextStep()">Next Step ➡</button>
+            </div>
+            <div class="graph-panel" id="t-graph">
+                <svg id="svg-layer"></svg>
+                <div class="tree-node" id="t-A">A <span>h=10</span></div>
+                <div class="tree-node" id="t-B">B <span>h=12</span></div>
+                <div class="tree-node" id="t-C">C <span>h=15</span></div>
+                <div class="tree-node" id="t-D">D <span>h=9</span></div>
+                <div class="tree-node" id="t-E">E <span>h=14</span></div>
+                <div class="tree-node" id="t-F">F <span>h=16</span></div>
+                <div class="tree-node" id="t-G">G <span>h=14</span></div>
+                <div class="tree-node" id="t-H">H <span>h=13</span></div>
+                <div class="tree-node" id="t-I">I (Max)<span>h=18</span></div>
+                <div class="tree-node" id="t-J">J <span>h=15</span></div>
+            </div>
+            <div class="log-panel" id="t-log"><div class="log-entry hl-blue">Ready to start at Node A.</div></div>
+        </div>
+    </div>
+
+    <!-- TAB 2: PUZZLE -->
+    <div id="puzzle-tab" class="tab-content">
+        <div class="question-box">
+            <strong>🧩 8-Puzzle Trap:</strong> The AI aims to <strong>MINIMIZE</strong> misplaced tiles. It greedily picks Node B (h=1), but gets permanently stuck because further moves ruin the board temporarily!
+        </div>
+        <div class="container">
+            <div class="controls">
+                <button class="action-btn" onclick="p_reset()">Reset Trace</button>
+                <div>Step: <span id="p-step">0</span></div>
+                <button class="action-btn" id="p-next" onclick="p_nextStep()">Next Step ➡</button>
+            </div>
+            <div class="graph-panel" id="p-graph">
+                <svg id="svg-layer-p" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;"></svg>
+                
+                <div class="puzzle-node" id="p-S">
+                    <strong>Start (S)</strong><br><span style="font-size:12px; color:#ef4444;">h=2 (Misplaced)</span>
+                    <div class="puzzle-grid">
+                        <div class="tile">1</div><div class="tile">2</div><div class="tile">3</div>
+                        <div class="tile">4</div><div class="tile empty"></div><div class="tile misplaced">6</div>
+                        <div class="tile">7</div><div class="tile misplaced">5</div><div class="tile">8</div>
+                    </div>
+                </div>
+                
+                <div class="puzzle-node" id="p-A">
+                    <strong>Node A</strong><br><span style="font-size:12px; color:#ef4444;">h=3 (Worse)</span>
+                    <div class="puzzle-grid">
+                        <div class="tile">1</div><div class="tile">2</div><div class="tile">3</div>
+                        <div class="tile misplaced">4</div><div class="tile empty"></div><div class="tile misplaced">6</div>
+                        <div class="tile">7</div><div class="tile misplaced">5</div><div class="tile">8</div>
+                    </div>
+                </div>
+
+                <div class="puzzle-node" id="p-B">
+                    <strong>Node B</strong><br><span style="font-size:12px; color:#ef4444;">h=1 (Better!)</span>
+                    <div class="puzzle-grid">
+                        <div class="tile">1</div><div class="tile">2</div><div class="tile">3</div>
+                        <div class="tile">4</div><div class="tile">5</div><div class="tile misplaced">6</div>
+                        <div class="tile">7</div><div class="tile empty"></div><div class="tile">8</div>
+                    </div>
+                </div>
+
+                <div class="puzzle-node" id="p-C" style="transform: scale(0.85) translate(-50%, -50%); transform-origin: top left;">
+                    <strong>Node C (h=3)</strong>
+                    <div class="puzzle-grid">
+                        <div class="tile">1</div><div class="tile">2</div><div class="tile">3</div>
+                        <div class="tile">4</div><div class="tile">5</div><div class="tile misplaced">6</div>
+                        <div class="tile empty"></div><div class="tile misplaced">7</div><div class="tile">8</div>
+                    </div>
+                </div>
+
+                <div class="puzzle-node" id="p-D" style="transform: scale(0.85) translate(-50%, -50%); transform-origin: top left;">
+                    <strong>Node D (h=3)</strong>
+                    <div class="puzzle-grid">
+                        <div class="tile">1</div><div class="tile">2</div><div class="tile">3</div>
+                        <div class="tile">4</div><div class="tile">5</div><div class="tile empty"></div>
+                        <div class="tile">7</div><div class="tile misplaced">8</div><div class="tile misplaced">6</div>
+                    </div>
+                </div>
+            </div>
+            <div class="log-panel" id="p-log"><div class="log-entry hl-blue">Ready to evaluate Start State.</div></div>
+        </div>
+    </div>
+
+    <script>
+        // --- TAB LOGIC ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            setTimeout(drawAllLines, 50); // Redraw lines when tab becomes visible
+        }
+
+        // --- TREE LOGIC ---
+        let t_step = 0;
+        const t_edges = [['t-A','t-B'], ['t-A','t-C'], ['t-A','t-D'], ['t-B','t-E'], ['t-B','t-F'], ['t-C','t-G'], ['t-C','t-H'], ['t-F','t-I'], ['t-F','t-J']];
+        
+        function t_logMsg(msg, type='') {
+            const log = document.getElementById('t-log');
+            log.innerHTML += `<div class="log-entry ${type}">${msg}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function t_nextStep() {
+            t_step++; document.getElementById('t-step').innerText = t_step;
+            if (t_step === 1) {
+                document.getElementById('t-A').classList.add('active-node');
+                t_logMsg("<b>STEP 1:</b> Current Node: A (h=10)", "hl-blue");
+            } else if (t_step === 2) {
+                ['t-B', 't-C', 't-D'].forEach(id => document.getElementById(id).classList.add('evaluated'));
+                t_logMsg("<b>STEP 2:</b> Highest neighbor of A is C (h=15).");
+            } else if (t_step === 3) {
+                document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active-node', 'evaluated'));
+                document.getElementById('t-C').classList.add('active-node');
+                document.getElementById('line-t-A-t-C').classList.add('line-active');
+                t_logMsg("<b>STEP 3:</b> C(15) > A(10). Moved to C.", "hl-green");
+            } else if (t_step === 4) {
+                ['t-G', 't-H'].forEach(id => document.getElementById(id).classList.add('evaluated'));
+                t_logMsg("<b>STEP 4:</b> Highest neighbor of C is G (h=14).");
+            } else if (t_step === 5) {
+                document.getElementById('t-C').classList.remove('active-node');
+                document.getElementById('t-C').classList.add('trapped');
+                t_logMsg("<b>STEP 5: Trap!</b> G(14) is NOT > C(15). Algorithm Stops.", "hl-red");
+                document.getElementById('t-next').disabled = true;
+            }
+        }
+        function t_reset() {
+            t_step = 0; document.getElementById('t-step').innerText = 0;
+            document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active-node', 'evaluated', 'trapped'));
+            document.querySelectorAll('line').forEach(l => l.classList.remove('line-active'));
+            document.getElementById('t-log').innerHTML = '<div class="log-entry hl-blue">Ready.</div>';
+            document.getElementById('t-next').disabled = false;
+        }
+
+        // --- PUZZLE LOGIC ---
+        let p_step = 0;
+        const p_edges = [['p-S','p-A'], ['p-S','p-B'], ['p-B','p-C'], ['p-B','p-D']];
+        
+        function p_logMsg(msg, type='') {
+            const log = document.getElementById('p-log');
+            log.innerHTML += `<div class="log-entry ${type}">${msg}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function p_nextStep() {
+            p_step++; document.getElementById('p-step').innerText = p_step;
+            if (p_step === 1) {
+                document.getElementById('p-S').classList.add('active-node');
+                p_logMsg("<b>STEP 1:</b> Start Node S (h=2)", "hl-blue");
+            } else if (p_step === 2) {
+                ['p-A', 'p-B'].forEach(id => document.getElementById(id).classList.add('evaluated'));
+                p_logMsg("<b>STEP 2:</b> Node B lowers cost to h=1.");
+            } else if (p_step === 3) {
+                document.querySelectorAll('.puzzle-node').forEach(n => n.classList.remove('active-node', 'evaluated'));
+                document.getElementById('p-B').classList.add('active-node');
+                document.getElementById('line-p-S-p-B').classList.add('line-active');
+                p_logMsg("<b>STEP 3:</b> AI moves to Node B to MINIMIZE heuristic.", "hl-green");
+            } else if (p_step === 4) {
+                ['p-C', 'p-D'].forEach(id => document.getElementById(id).classList.add('evaluated'));
+                p_logMsg("<b>STEP 4:</b> Exploring from Node B. Next moves have h=3.");
+            } else if (p_step === 5) {
+                document.getElementById('p-B').classList.remove('active-node');
+                document.getElementById('p-B').classList.add('trapped');
+                p_logMsg("<b>STEP 5: Local Minimum!</b> All next states are worse (h=3 > h=1). Stuck!", "hl-red");
+                document.getElementById('p-next').disabled = true;
+            }
+        }
+        function p_reset() {
+            p_step = 0; document.getElementById('p-step').innerText = 0;
+            document.querySelectorAll('.puzzle-node').forEach(n => n.classList.remove('active-node', 'evaluated', 'trapped'));
+            document.querySelectorAll('line').forEach(l => l.classList.remove('line-active'));
+            document.getElementById('p-log').innerHTML = '<div class="log-entry hl-blue">Ready.</div>';
+            document.getElementById('p-next').disabled = false;
+        }
+
+        // --- DRAW LINES FOR BOTH ---
+        function drawLines(svgId, edges, panelId) {
+            const svg = document.getElementById(svgId);
+            svg.innerHTML = '';
+            const panelRect = document.getElementById(panelId).getBoundingClientRect();
+            edges.forEach(edge => {
+                const n1 = document.getElementById(edge[0]).getBoundingClientRect();
+                const n2 = document.getElementById(edge[1]).getBoundingClientRect();
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', n1.left - panelRect.left + n1.width/2);
+                line.setAttribute('y1', n1.top - panelRect.top + n1.height/2);
+                line.setAttribute('x2', n2.left - panelRect.left + n2.width/2);
+                line.setAttribute('y2', n2.top - panelRect.top + n2.height/2);
+                line.setAttribute('id', `line-${edge[0]}-${edge[1]}`);
+                svg.appendChild(line);
+            });
+        }
+        function drawAllLines() {
+            if(document.getElementById('tree-tab').classList.contains('active')) drawLines('svg-layer', t_edges, 't-graph');
+            if(document.getElementById('puzzle-tab').classList.contains('active')) drawLines('svg-layer-p', p_edges, 'p-graph');
+        }
+        window.onload = drawAllLines;
+        window.onresize = drawAllLines;
+    </script>
+</body>
+</html>

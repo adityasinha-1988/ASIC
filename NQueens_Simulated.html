@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8-Queens: 3D Search Space & Board Navigation</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #38bdf8; margin-bottom: 5px; text-align: center; }
+        .subtitle { color: #94a3b8; margin-bottom: 20px; font-size: 15px; text-align: center; }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1300px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .panel {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .left-panel { flex: 1; min-width: 350px; align-items: center; border-top: 4px solid #38bdf8; }
+        .right-panel { flex: 2; min-width: 600px; border-top: 4px solid #4ade80; }
+
+        .controls { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+        label { font-size: 0.9em; font-weight: bold; color: #cbd5e1; }
+        input[type="range"] { width: 100%; }
+
+        button {
+            padding: 12px; background-color: #38bdf8; color: #0f172a; 
+            border: none; border-radius: 5px; cursor: pointer;
+            font-size: 16px; font-weight: bold; transition: background 0.3s;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #0ea5e9; }
+        button:disabled { background-color: #475569; cursor: not-allowed; }
+
+        .stat-row { display: flex; justify-content: space-between; font-size: 1em; margin-bottom: 5px; width: 100%;}
+        .val-red { color: #f87171; font-weight: bold; }
+        .val-green { color: #4ade80; font-weight: bold; }
+        .val-blue { color: #60a5fa; font-weight: bold; }
+
+        /* Strictly Locked Chessboard Styling to prevent shaking */
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 40px);
+            grid-template-rows: repeat(8, 40px);
+            width: 328px; /* 8*40 + 8px borders */
+            height: 328px;
+            border: 4px solid #334155;
+            border-radius: 4px;
+            margin: 15px auto;
+            background-color: #334155;
+        }
+        .cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            line-height: 1; /* Stops text from expanding cell */
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .cell.white { background-color: #cbd5e1; color: #0f172a; }
+        .cell.black { background-color: #475569; color: #0f172a; }
+        .queen { color: #e11d48; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); display: block; }
+
+        #plot { width: 100%; height: 500px; background: transparent; }
+    </style>
+</head>
+<body>
+
+    <h1>8-Queens: 3D Landscape Navigation</h1>
+    <div class="subtitle">Watch Simulated Annealing map the board state directly into a 3D optimization landscape.</div>
+
+    <div class="main-container">
+        
+        <!-- LEFT PANEL: Chessboard & Controls -->
+        <div class="panel left-panel">
+            <h3 style="margin: 0; color: #f8fafc;">Board State & Algorithm</h3>
+            
+            <div class="chessboard" id="board"></div>
+
+            <div class="controls" style="margin-top: 15px;">
+                <div>
+                    <label>Initial Temp (T0): <span id="tempValLabel">10</span></label>
+                    <input type="range" id="temp" min="1" max="30" step="0.5" value="10" oninput="document.getElementById('tempValLabel').innerText = this.value">
+                </div>
+                <div>
+                    <label>Cooling Rate (α): <span id="coolingValLabel">0.97</span></label>
+                    <input type="range" id="cooling" min="0.80" max="0.999" step="0.001" value="0.97" oninput="document.getElementById('coolingValLabel').innerText = this.value">
+                </div>
+                <button id="btn-start" onclick="startOptimization()">Start Optimization</button>
+            </div>
+
+            <hr style="width: 100%; border-color: #334155;">
+
+            <div class="stat-row"><span>Energy (Attacking Pairs):</span><span class="val-green" id="currE">0</span></div>
+            <div class="stat-row"><span>Current Temp (T):</span><span class="val-red" id="currT">0.00</span></div>
+            <div class="stat-row"><span>Action Status:</span><span class="val-blue" id="actionStatus">Ready</span></div>
+        </div>
+
+        <!-- RIGHT PANEL: 3D Plot -->
+        <div class="panel right-panel">
+            <h3 style="margin: 0; color: #f8fafc;">3D Solution Space (Goal: Reach Valley Z=0)</h3>
+            <div id="plot"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 8-Queens Logic ---
+        let state = [];
+        let currentEnergy, temperature, coolingRate, intervalId;
+        
+        // --- 3D Plot Variables ---
+        let pathX = [], pathY = [], pathZ = [];
+
+        function getEnergy(st) {
+            let attacks = 0;
+            for(let i=0; i<8; i++){
+                for(let j=i+1; j<8; j++){
+                    if(st[i] === st[j]) attacks++; 
+                    if(Math.abs(st[i]-st[j]) === Math.abs(i-j)) attacks++; 
+                }
+            }
+            return attacks;
+        }
+
+        // Map the 8D board state to a 2D coordinate for the 3D surface plot
+        function mapStateTo2D(st) {
+            let x = 0, y = 0;
+            for (let i = 0; i < 4; i++) x += (st[i] - 3.5) * Math.pow(0.8, i);
+            for (let i = 4; i < 8; i++) y += (st[i] - 3.5) * Math.pow(0.8, i - 4);
+            return { x: x * 1.5, y: y * 1.5 };
+        }
+
+        // Generate conceptual 3D surface (A big bowl with some local bumps)
+        function surfaceFunction(x, y) {
+            let bowl = (x*x + y*y) * 0.15; // Global minimum at (0,0)
+            let bumps = Math.sin(x*1.5) * Math.cos(y*1.5) * 2; // Local traps
+            return Math.max(0, bowl + bumps + 2); 
+        }
+
+        function drawBoard(st) {
+            let html = '';
+            for(let r=0; r<8; r++){
+                for(let c=0; c<8; c++){
+                    let colorClass = (r+c) % 2 === 0 ? 'white' : 'black';
+                    let symbol = st[c] === r ? '<span class="queen">♛</span>' : '';
+                    html += `<div class="cell ${colorClass}">${symbol}</div>`;
+                }
+            }
+            document.getElementById('board').innerHTML = html;
+        }
+
+        function initPlot() {
+            let xData = [], yData = [], zData = [];
+            for (let i = -10; i <= 10; i += 0.5) {
+                xData.push(i);
+                yData.push(i);
+            }
+            for (let j = 0; j < yData.length; j++) {
+                let zRow = [];
+                for (let i = 0; i < xData.length; i++) {
+                    zRow.push(surfaceFunction(xData[i], yData[j]));
+                }
+                zData.push(zRow);
+            }
+
+            let surfaceTrace = {
+                z: zData, x: xData, y: yData,
+                type: 'surface', colorscale: 'Portland', opacity: 0.6, showscale: false, hoverinfo: 'none'
+            };
+
+            let pathTrace = {
+                x: [], y: [], z: [],
+                mode: 'lines', type: 'scatter3d',
+                line: { color: '#f8fafc', width: 4 }, name: 'Path'
+            };
+
+            let headTrace = {
+                x: [], y: [], z: [],
+                mode: 'markers', type: 'scatter3d',
+                marker: { size: 8, color: '#facc15', line: {color: '#000', width: 1} }, name: 'Current State'
+            };
+
+            let layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                scene: {
+                    xaxis: { title: 'Board Dim X', range: [-10, 10] },
+                    yaxis: { title: 'Board Dim Y', range: [-10, 10] },
+                    zaxis: { title: 'Attacking Pairs (Energy)', range: [0, 15] },
+                    camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
+                },
+                paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', showlegend: false
+            };
+
+            Plotly.newPlot('plot', [surfaceTrace, pathTrace, headTrace], layout);
+        }
+
+        function startOptimization() {
+            if(intervalId) clearInterval(intervalId);
+            document.getElementById('btn-start').disabled = true;
+            
+            // Random start
+            state = [];
+            for(let i=0; i<8; i++) state.push(Math.floor(Math.random() * 8));
+            
+            currentEnergy = getEnergy(state);
+            temperature = parseFloat(document.getElementById('temp').value);
+            coolingRate = parseFloat(document.getElementById('cooling').value);
+            
+            let coords = mapStateTo2D(state);
+            pathX = [coords.x]; pathY = [coords.y]; pathZ = [currentEnergy];
+
+            drawBoard(state);
+            
+            // Reset Plotly dynamically
+            Plotly.restyle('plot', { x: [pathX], y: [pathY], z: [pathZ] }, [1]);
+            Plotly.restyle('plot', { x: [[coords.x]], y: [[coords.y]], z: [[currentEnergy]] }, [2]);
+
+            intervalId = setInterval(stepAnnealing, 100);
+        }
+
+        function stepAnnealing() {
+            if (currentEnergy === 0 || temperature < 0.05) {
+                clearInterval(intervalId);
+                document.getElementById('btn-start').disabled = false;
+                let status = currentEnergy === 0 ? "Global Minimum (0 Attacks)!" : "Trapped / Cooled Down";
+                document.getElementById('actionStatus').innerText = status;
+                document.getElementById('actionStatus').style.color = currentEnergy === 0 ? "#4ade80" : "#facc15";
+                return;
+            }
+
+            // Neighbor Generation: Move single queen in random column
+            let neighbor = [...state];
+            let col = Math.floor(Math.random() * 8);
+            let oldRow = neighbor[col];
+            let newRow = Math.floor(Math.random() * 8);
+            while(newRow === oldRow) { newRow = Math.floor(Math.random() * 8); }
+            neighbor[col] = newRow;
+
+            let neighborEnergy = getEnergy(neighbor);
+            let deltaE = neighborEnergy - currentEnergy; 
+
+            let accepted = false;
+            let statusText = "";
+
+            if (deltaE <= 0) {
+                // Better or equal state
+                state = neighbor; currentEnergy = neighborEnergy;
+                accepted = true;
+                statusText = "Good Move Accepted";
+            } else {
+                // Worse state -> Accept with probability e^-(ΔE/T)
+                let prob = Math.exp(-deltaE / temperature);
+                if (Math.random() < prob) {
+                    state = neighbor; currentEnergy = neighborEnergy;
+                    accepted = true;
+                    statusText = "Bad Move Accepted (High T)";
+                } else {
+                    statusText = "Bad Move Rejected";
+                }
+            }
+
+            temperature *= coolingRate;
+
+            if (accepted) {
+                drawBoard(state);
+                let coords = mapStateTo2D(state);
+                pathX.push(coords.x); pathY.push(coords.y); pathZ.push(currentEnergy);
+
+                // Update Plotly without redrawing surface
+                Plotly.restyle('plot', { x: [pathX], y: [pathY], z: [pathZ] }, [1]);
+                Plotly.restyle('plot', { x: [[coords.x]], y: [[coords.y]], z: [[currentEnergy]] }, [2]);
+            }
+
+            document.getElementById('currE').innerText = currentEnergy;
+            document.getElementById('currT').innerText = temperature.toFixed(2);
+            document.getElementById('actionStatus').innerText = statusText;
+            document.getElementById('actionStatus').style.color = "#60a5fa";
+        }
+
+        // Init
+        for(let i=0; i<8; i++) state.push(Math.floor(Math.random() * 8));
+        initPlot();
+        drawBoard(state);
+    </script>
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Alpha-Beta Pruning Tracer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #1a252f;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #555;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Container Layout */
+        .layout-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        .content-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            height: 650px;
+        }
+
+        /* Controls Panel (Top) */
+        .controls-panel {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+        }
+        
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .controls-header {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-right: 10px;
+            color: #2c3e50;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .status-box {
+            background: #e8f4f8;
+            padding: 10px 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+            font-size: 0.9em;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        .formula-box {
+            background: #fcf3cf;
+            padding: 10px 20px;
+            border-radius: 4px;
+            border-left: 4px solid #f1c40f;
+            font-size: 0.85em;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin: 0;
+        }
+        .formula-box strong { color: #d35400; }
+
+        /* Graph Panel */
+        .graph-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* SVG for Lines */
+        #svg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to nodes if needed */
+            z-index: 1;
+        }
+        line {
+            stroke: #bdc3c7;
+            stroke-width: 2;
+            transition: stroke 0.3s, stroke-width 0.3s;
+        }
+        line.active-edge {
+            stroke: #f39c12;
+            stroke-width: 4;
+        }
+        line.pruned-edge {
+            stroke: #e74c3c;
+            stroke-width: 2;
+            stroke-dasharray: 5, 5;
+            opacity: 0.5;
+        }
+
+        /* Tree Nodes */
+        .node {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: white;
+            border: 2px solid #7f8c8d;
+            border-radius: 50%; /* Default circular */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            z-index: 2;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Shape variations */
+        .node.max { border-radius: 4px; /* Square for MAX */ border-color: #2980b9; }
+        .node.min { border-radius: 50%; /* Circle for MIN */ border-color: #c0392b; }
+        .node.leaf { border-radius: 4px; border-color: #27ae60; background-color: #e8f8f5; font-size: 0.9em; width: 30px; height:30px;}
+
+        /* Node States */
+        .node.active {
+            background-color: #f1c40f;
+            border-color: #f39c12;
+            box-shadow: 0 0 15px rgba(243, 156, 18, 0.6);
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        .node.evaluated {
+            background-color: #ecf0f1;
+            color: #7f8c8d;
+        }
+        .node.pruned {
+            background-color: #fadbd8;
+            border-color: #e74c3c;
+            color: #c0392b;
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+
+        /* Values floating near nodes */
+        .node-values {
+            position: absolute;
+            top: -25px; /* Adjust as needed */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75em;
+            white-space: nowrap;
+            color: #34495e;
+            font-family: monospace;
+            background: rgba(255,255,255,0.9);
+            padding: 2px 4px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            z-index: 3;
+            display: none; /* Hidden by default, shown when values exist */
+        }
+        .node.has-values .node-values {
+            display: block;
+        }
+        .val-alpha { color: #27ae60; font-weight: bold;}
+        .val-beta { color: #c0392b; font-weight: bold;}
+        .val-v { color: #2980b9; font-weight: bold;}
+
+        /* Log Panel */
+        .log-panel {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .log-header {
+            font-weight: bold;
+            font-size: 1.1em;
+            border-bottom: 2px solid #34495e;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .log-content {
+            flex: 1;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        .log-entry { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #34495e; }
+        .log-entry:last-child { border-bottom: none; }
+        .hl-info { color: #3498db; }
+        .hl-action { color: #f1c40f; }
+        .hl-prune { color: #e74c3c; font-weight: bold; }
+        .hl-update { color: #2ecc71; }
+
+        /* Dropdown styling */
+        .tree-selector {
+            margin-right: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #bdc3c7;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Alpha-Beta Pruning Tracer</h1>
+    <div class="subtitle">Step-by-step visualization of the Tree (MAX &rarr; MIN &rarr; MAX &rarr; Leaves)</div>
+
+    <div class="layout-wrapper">
+        
+        <!-- Controls (Top) -->
+        <div class="controls-panel">
+            <div class="controls-left">
+                <div class="tree-selector">
+                    <label for="tree-select">Select Tree:</label>
+                    <select id="tree-select" onchange="loadSelectedTree()">
+                        <option value="q2">Question 2 (Bottom Tree)</option>
+                        <option value="slide">Slide Example (Worst-Case Left)</option>
+                        <option value="q1">Question 1 (Top Tree)</option>
+                    </select>
+                </div>
+                <button id="btn-next" onclick="nextStep()">Next Step ➡</button>
+                <button id="btn-reset" onclick="resetTrace()" style="background-color: #95a5a6;">Reset</button>
+                <div class="status-box">
+                    <strong style="margin-right: 5px;">Step:</strong> <span id="step-counter">0</span> &nbsp;/&nbsp; <span id="total-steps">?</span>
+                </div>
+            </div>
+
+            <div class="formula-box">
+                <div>
+                    <strong>Rules:</strong><br>
+                    &alpha; = best MAX value so far<br>
+                    &beta; = best MIN value so far
+                </div>
+                <div style="border-left: 1px solid #ebd369; padding-left: 20px;">
+                    <strong>Prune if:</strong><br>
+                    &alpha; &ge; &beta; (Beta cut-off)<br>
+                    &beta; &le; &alpha; (Alpha cut-off)
+                </div>
+            </div>
+        </div>
+
+        <div class="content-container">
+            <!-- Graph -->
+            <div class="graph-panel" id="graph-container">
+                <svg id="svg-layer"></svg>
+                <!-- Nodes will be injected here via JS to handle positioning cleanly -->
+            </div>
+
+            <!-- Log -->
+            <div class="log-panel">
+                <div class="log-header">Execution Log</div>
+                <div class="log-content" id="log-container">
+                    <div class="log-entry hl-info">System ready. Click 'Next Step' to begin.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Data structure representing the trees
+
+        // --- Question 2 (Bottom Tree) ---
+        const nodes_q2 = {
+            'root': { id: 'root', type: 'max', label: '', x: 50, y: 10 },
+            'm1_l': { id: 'm1_l', type: 'min', label: '', x: 20, y: 35 },
+            'm1_m': { id: 'm1_m', type: 'min', label: '', x: 50, y: 35 },
+            'm1_r': { id: 'm1_r', type: 'min', label: '', x: 80, y: 35 },
+            'M2_ll': { id: 'M2_ll', type: 'max', label: '', x: 10, y: 65 },
+            'M2_lm': { id: 'M2_lm', type: 'max', label: '', x: 20, y: 65 },
+            'M2_lr': { id: 'M2_lr', type: 'max', label: '', x: 30, y: 65 },
+            'M2_ml': { id: 'M2_ml', type: 'max', label: '', x: 40, y: 65 },
+            'M2_mm': { id: 'M2_mm', type: 'max', label: '', x: 50, y: 65 },
+            'M2_mr': { id: 'M2_mr', type: 'max', label: '', x: 60, y: 65 },
+            'M2_rl': { id: 'M2_rl', type: 'max', label: '', x: 70, y: 65 },
+            'M2_rm': { id: 'M2_rm', type: 'max', label: '', x: 80, y: 65 },
+            'M2_rr': { id: 'M2_rr', type: 'max', label: '', x: 90, y: 65 },
+            'l_ll1': { id: 'l_ll1', type: 'leaf', label: '8', val: 8, x: 7, y: 90 },
+            'l_ll2': { id: 'l_ll2', type: 'leaf', label: '7', val: 7, x: 10, y: 90 },
+            'l_ll3': { id: 'l_ll3', type: 'leaf', label: '3', val: 3, x: 13, y: 90 },
+            'l_lm1': { id: 'l_lm1', type: 'leaf', label: '9', val: 9, x: 17, y: 90 },
+            'l_lm2': { id: 'l_lm2', type: 'leaf', label: '0', val: 0, x: 20, y: 90 },
+            'l_lm3': { id: 'l_lm3', type: 'leaf', label: '6', val: 6, x: 23, y: 90 },
+            'l_lr1': { id: 'l_lr1', type: 'leaf', label: '2', val: 2, x: 27, y: 90 },
+            'l_lr2': { id: 'l_lr2', type: 'leaf', label: '4', val: 4, x: 30, y: 90 },
+            'l_lr3': { id: 'l_lr3', type: 'leaf', label: '1', val: 1, x: 33, y: 90 },
+            'l_ml1': { id: 'l_ml1', type: 'leaf', label: '1', val: 1, x: 37, y: 90 },
+            'l_ml2': { id: 'l_ml2', type: 'leaf', label: '3', val: 3, x: 40, y: 90 },
+            'l_ml3': { id: 'l_ml3', type: 'leaf', label: '5', val: 5, x: 43, y: 90 },
+            'l_mm1': { id: 'l_mm1', type: 'leaf', label: '3', val: 3, x: 47, y: 90 },
+            'l_mm2': { id: 'l_mm2', type: 'leaf', label: '9', val: 9, x: 50, y: 90 },
+            'l_mm3': { id: 'l_mm3', type: 'leaf', label: '2', val: 2, x: 53, y: 90 },
+            'l_mr1': { id: 'l_mr1', type: 'leaf', label: '6', val: 6, x: 57, y: 90 },
+            'l_mr2': { id: 'l_mr2', type: 'leaf', label: '5', val: 5, x: 60, y: 90 },
+            'l_mr3': { id: 'l_mr3', type: 'leaf', label: '2', val: 2, x: 63, y: 90 },
+            'l_rl1': { id: 'l_rl1', type: 'leaf', label: '1', val: 1, x: 67, y: 90 },
+            'l_rl2': { id: 'l_rl2', type: 'leaf', label: '2', val: 2, x: 70, y: 90 },
+            'l_rl3': { id: 'l_rl3', type: 'leaf', label: '3', val: 3, x: 73, y: 90 },
+            'l_rm1': { id: 'l_rm1', type: 'leaf', label: '9', val: 9, x: 77, y: 90 },
+            'l_rm2': { id: 'l_rm2', type: 'leaf', label: '7', val: 7, x: 80, y: 90 },
+            'l_rm3': { id: 'l_rm3', type: 'leaf', label: '2', val: 2, x: 83, y: 90 },
+            'l_rr1': { id: 'l_rr1', type: 'leaf', label: '8', val: 8, x: 87, y: 90 },
+            'l_rr2': { id: 'l_rr2', type: 'leaf', label: '6', val: 6, x: 93, y: 90 }
+        };
+        const edges_q2 = [
+            ['root', 'm1_l'], ['root', 'm1_m'], ['root', 'm1_r'],
+            ['m1_l', 'M2_ll'], ['m1_l', 'M2_lm'], ['m1_l', 'M2_lr'],
+            ['m1_m', 'M2_ml'], ['m1_m', 'M2_mm'], ['m1_m', 'M2_mr'],
+            ['m1_r', 'M2_rl'], ['m1_r', 'M2_rm'], ['m1_r', 'M2_rr'],
+            ['M2_ll', 'l_ll1'], ['M2_ll', 'l_ll2'], ['M2_ll', 'l_ll3'],
+            ['M2_lm', 'l_lm1'], ['M2_lm', 'l_lm2'], ['M2_lm', 'l_lm3'],
+            ['M2_lr', 'l_lr1'], ['M2_lr', 'l_lr2'], ['M2_lr', 'l_lr3'],
+            ['M2_ml', 'l_ml1'], ['M2_ml', 'l_ml2'], ['M2_ml', 'l_ml3'],
+            ['M2_mm', 'l_mm1'], ['M2_mm', 'l_mm2'], ['M2_mm', 'l_mm3'],
+            ['M2_mr', 'l_mr1'], ['M2_mr', 'l_mr2'], ['M2_mr', 'l_mr3'],
+            ['M2_rl', 'l_rl1'], ['M2_rl', 'l_rl2'], ['M2_rl', 'l_rl3'],
+            ['M2_rm', 'l_rm1'], ['M2_rm', 'l_rm2'], ['M2_rm', 'l_rm3'],
+            ['M2_rr', 'l_rr1'], ['M2_rr', 'l_rr2']
+        ];
+        const steps_q2 = [
+            { action: 'activate', node: 'root', msg: 'Start at Root (MAX node). Initial bounds: &alpha;=-&infin;, &beta;=&infin;', update: {root: {a: '-&infin;', b: '&infin;'}} },
+            { action: 'activate', node: 'm1_l', msg: 'Explore left MIN child.', update: {m1_l: {a: '-&infin;', b: '&infin;'}} },
+            { action: 'activate', node: 'M2_ll', msg: 'Explore first MAX child of MIN.', update: {M2_ll: {a: '-&infin;', b: '&infin;'}} },
+            { action: 'evaluate', nodes: ['l_ll1', 'l_ll2', 'l_ll3'], msg: 'Evaluate leaves: 8, 7, 3.' },
+            { action: 'update', node: 'M2_ll', val: '8', msg: 'MAX node chooses largest value (8).', update: {M2_ll: {v: 8}} },
+            { action: 'update', node: 'm1_l', val: '8', msg: 'MIN node updates &beta; bound to 8.', update: {m1_l: {a: '-&infin;', b: 8}} },
+            { action: 'activate', node: 'M2_lm', msg: 'Explore next MAX child.', update: {M2_lm: {a: '-&infin;', b: 8}} },
+            { action: 'evaluate', nodes: ['l_lm1'], msg: 'Evaluate first leaf: 9.' },
+            { action: 'update', node: 'M2_lm', val: '9', msg: 'MAX updates &alpha; bound to 9.', update: {M2_lm: {a: 9, b: 8}} },
+            { action: 'prune', nodes: ['l_lm2', 'l_lm3'], msg: 'PRUNE! &alpha; (9) &ge; &beta; (8). Beta cut-off.' },
+            { action: 'update', node: 'M2_lm', val: '9', msg: 'This MAX branch returns 9.', update: {M2_lm: {v: 9}} },
+            { action: 'activate', node: 'M2_lr', msg: 'Explore next MAX child.', update: {M2_lr: {a: '-&infin;', b: 8}} },
+            { action: 'evaluate', nodes: ['l_lr1', 'l_lr2', 'l_lr3'], msg: 'Evaluate leaves: 2, 4, 1.' },
+            { action: 'update', node: 'M2_lr', val: '4', msg: 'MAX chooses 4.', update: {M2_lr: {v: 4}} },
+            { action: 'update', node: 'm1_l', val: '4', msg: 'MIN node completes. Minimum of (8, 9, 4) is 4.', update: {m1_l: {v: 4}} },
+            { action: 'update', node: 'root', val: '4', msg: 'Root MAX updates &alpha; to 4.', update: {root: {a: 4, b: '&infin;'}} },
+            { action: 'activate', node: 'm1_m', msg: 'Explore middle MIN child. Inherits &alpha;=4.', update: {m1_m: {a: 4, b: '&infin;'}} },
+            { action: 'activate', node: 'M2_ml', msg: 'Explore first MAX child.', update: {M2_ml: {a: 4, b: '&infin;'}} },
+            { action: 'evaluate', nodes: ['l_ml1', 'l_ml2', 'l_ml3'], msg: 'Evaluate leaves: 1, 3, 5.' },
+            { action: 'update', node: 'M2_ml', val: '5', msg: 'MAX chooses 5.', update: {M2_ml: {v: 5}} },
+            { action: 'update', node: 'm1_m', val: '5', msg: 'MIN node updates &beta; to 5.', update: {m1_m: {a: 4, b: 5}} },
+            { action: 'activate', node: 'M2_mm', msg: 'Explore next MAX child.', update: {M2_mm: {a: 4, b: 5}} },
+            { action: 'evaluate', nodes: ['l_mm1'], msg: 'Evaluate leaf: 3.' },
+            { action: 'update', node: 'M2_mm', val: '3', msg: 'MAX updates &alpha; to 3.' },
+            { action: 'evaluate', nodes: ['l_mm2'], msg: 'Evaluate leaf: 9.' },
+            { action: 'update', node: 'M2_mm', val: '9', msg: 'MAX updates &alpha; to 9.', update: {M2_mm: {a: 9, b: 5}} },
+            { action: 'prune', nodes: ['l_mm3'], msg: 'PRUNE! &alpha; (9) &ge; &beta; (5). Beta cut-off.' },
+            { action: 'activate', node: 'M2_mr', msg: 'Explore next MAX child.', update: {M2_mr: {a: 4, b: 5}} },
+            { action: 'evaluate', nodes: ['l_mr1'], msg: 'Evaluate leaf: 6.' },
+            { action: 'update', node: 'M2_mr', val: '6', msg: 'MAX updates &alpha; to 6.', update: {M2_mr: {a: 6, b: 5}} },
+            { action: 'prune', nodes: ['l_mr2', 'l_mr3'], msg: 'PRUNE! &alpha; (6) &ge; &beta; (5). Beta cut-off.' },
+            { action: 'update', node: 'm1_m', val: '5', msg: 'MIN node completes. Returns 5.', update: {m1_m: {v: 5}} },
+            { action: 'update', node: 'root', val: '5', msg: 'Root MAX updates &alpha; to max(4,5) = 5.', update: {root: {a: 5, b: '&infin;'}} },
+            { action: 'activate', node: 'm1_r', msg: 'Explore right MIN child. Inherits &alpha;=5.', update: {m1_r: {a: 5, b: '&infin;'}} },
+            { action: 'activate', node: 'M2_rl', msg: 'Explore first MAX child.', update: {M2_rl: {a: 5, b: '&infin;'}} },
+            { action: 'evaluate', nodes: ['l_rl1', 'l_rl2', 'l_rl3'], msg: 'Evaluate leaves: 1, 2, 3.' },
+            { action: 'update', node: 'M2_rl', val: '3', msg: 'MAX chooses 3.', update: {M2_rl: {v: 3}} },
+            { action: 'update', node: 'm1_r', val: '3', msg: 'MIN node updates &beta; to 3.', update: {m1_r: {a: 5, b: 3}} },
+            { action: 'prune_massive', nodes: ['M2_rm', 'M2_rr', 'l_rm1', 'l_rm2', 'l_rm3', 'l_rr1', 'l_rr2'], edges: [['m1_r','M2_rm'], ['m1_r','M2_rr']], msg: 'MASSIVE PRUNE! &beta; (3) &le; &alpha; (5). Alpha cut-off. Root MAX will never choose this path.' },
+            { action: 'finish', node: 'root', val: '5', msg: 'Search Complete! Final optimal value at root is 5.', update: {root: {v: 5}} }
+        ];
+
+        // --- Slide Example (from presentation) ---
+        // Top root is MAX, then MIN (2 children), then MAX (4 children), then leaves.
+        const nodes_slide = {
+            'root': { id: 'root', type: 'max', label: '', x: 50, y: 15 },
+            'm1_l': { id: 'm1_l', type: 'min', label: '', x: 25, y: 35 },
+            'm1_r': { id: 'm1_r', type: 'min', label: '', x: 75, y: 35 },
+            'M2_ll': { id: 'M2_ll', type: 'max', label: '', x: 12.5, y: 60 },
+            'M2_lr': { id: 'M2_lr', type: 'max', label: '', x: 37.5, y: 60 },
+            'M2_rl': { id: 'M2_rl', type: 'max', label: '', x: 62.5, y: 60 },
+            'M2_rr': { id: 'M2_rr', type: 'max', label: '', x: 87.5, y: 60 },
+            'l_1': { id: 'l_1', type: 'leaf', label: '80', val: 80, x: 7, y: 85 },
+            'l_2': { id: 'l_2', type: 'leaf', label: '30', val: 30, x: 18, y: 85 },
+            'l_3': { id: 'l_3', type: 'leaf', label: '25', val: 25, x: 32, y: 85 },
+            'l_4': { id: 'l_4', type: 'leaf', label: '35', val: 35, x: 43, y: 85 },
+            'l_5': { id: 'l_5', type: 'leaf', label: '55', val: 55, x: 57, y: 85 },
+            'l_6': { id: 'l_6', type: 'leaf', label: '20', val: 20, x: 68, y: 85 },
+            'l_7': { id: 'l_7', type: 'leaf', label: '05', val: 5, x: 82, y: 85 },
+            'l_8': { id: 'l_8', type: 'leaf', label: '65', val: 65, x: 93, y: 85 }
+        };
+        const edges_slide = [
+            ['root', 'm1_l'], ['root', 'm1_r'],
+            ['m1_l', 'M2_ll'], ['m1_l', 'M2_lr'],
+            ['m1_r', 'M2_rl'], ['m1_r', 'M2_rr'],
+            ['M2_ll', 'l_1'], ['M2_ll', 'l_2'],
+            ['M2_lr', 'l_3'], ['M2_lr', 'l_4'],
+            ['M2_rl', 'l_5'], ['M2_rl', 'l_6'],
+            ['M2_rr', 'l_7'], ['M2_rr', 'l_8']
+        ];
+        const steps_slide = [
+             { action: 'activate', node: 'root', msg: 'Start at Root (MAX). Initial bounds: &alpha;=-&infin;, &beta;=&infin;', update: {root: {a: '-&infin;', b: '&infin;'}} },
+             { action: 'activate', node: 'm1_l', msg: 'Explore left MIN child.', update: {m1_l: {a: '-&infin;', b: '&infin;'}} },
+             { action: 'activate', node: 'M2_ll', msg: 'Explore first MAX child of MIN.', update: {M2_ll: {a: '-&infin;', b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_1'], msg: 'Evaluate first leaf: 80.' },
+             { action: 'update', node: 'M2_ll', val: '80', msg: 'MAX node updates &alpha; bound to 80.', update: {M2_ll: {a: 80, b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_2'], msg: 'Evaluate second leaf: 30.' },
+             { action: 'update', node: 'M2_ll', val: '80', msg: 'MAX chooses largest value (80).', update: {M2_ll: {v: 80}} },
+             { action: 'update', node: 'm1_l', val: '80', msg: 'MIN node updates &beta; bound to 80.', update: {m1_l: {a: '-&infin;', b: 80}} },
+             
+             { action: 'activate', node: 'M2_lr', msg: 'Explore next MAX child.', update: {M2_lr: {a: '-&infin;', b: 80}} },
+             { action: 'evaluate', nodes: ['l_3'], msg: 'Evaluate leaf: 25.' },
+             { action: 'update', node: 'M2_lr', val: '25', msg: 'MAX updates &alpha; bound to 25.', update: {M2_lr: {a: 25, b: 80}} },
+             { action: 'evaluate', nodes: ['l_4'], msg: 'Evaluate leaf: 35.' },
+             { action: 'update', node: 'M2_lr', val: '35', msg: 'MAX chooses 35 (no prune since 35 < 80).', update: {M2_lr: {v: 35}} },
+             
+             { action: 'update', node: 'm1_l', val: '35', msg: 'MIN node completes. Minimum of (80, 35) is 35.', update: {m1_l: {v: 35}} },
+             { action: 'update', node: 'root', val: '35', msg: 'Root MAX updates &alpha; to 35.', update: {root: {a: 35, b: '&infin;'}} },
+
+             { action: 'activate', node: 'm1_r', msg: 'Explore right MIN child. Inherits &alpha;=35.', update: {m1_r: {a: 35, b: '&infin;'}} },
+             { action: 'activate', node: 'M2_rl', msg: 'Explore first MAX child.', update: {M2_rl: {a: 35, b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_5'], msg: 'Evaluate leaf: 55.' },
+             { action: 'update', node: 'M2_rl', val: '55', msg: 'MAX updates &alpha; bound to 55.', update: {M2_rl: {a: 55, b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_6'], msg: 'Evaluate leaf: 20.' },
+             { action: 'update', node: 'M2_rl', val: '55', msg: 'MAX chooses 55.', update: {M2_rl: {v: 55}} },
+             { action: 'update', node: 'm1_r', val: '55', msg: 'MIN node updates &beta; bound to 55.', update: {m1_r: {a: 35, b: 55}} },
+
+             { action: 'activate', node: 'M2_rr', msg: 'Explore next MAX child.', update: {M2_rr: {a: 35, b: 55}} },
+             { action: 'evaluate', nodes: ['l_7'], msg: 'Evaluate leaf: 05.' },
+             { action: 'update', node: 'M2_rr', val: '5', msg: 'MAX updates &alpha; bound to 5.', update: {M2_rr: {a: 5, b: 55}} },
+             { action: 'evaluate', nodes: ['l_8'], msg: 'Evaluate leaf: 65.' },
+             { action: 'update', node: 'M2_rr', val: '65', msg: 'MAX updates &alpha; bound to 65.', update: {M2_rr: {a: 65, b: 55}} },
+             { action: 'prune', nodes: [], msg: 'PRUNE! &alpha; (65) &ge; &beta; (55). Beta cut-off.' },
+
+             { action: 'update', node: 'm1_r', val: '55', msg: 'MIN node completes. Minimum is 55.', update: {m1_r: {v: 55}} },
+             { action: 'finish', node: 'root', val: '55', msg: 'Search Complete! Final optimal value at root is 55 (max of 35, 55).', update: {root: {v: 55}} }
+        ];
+
+        // --- Question 1 (Top Tree) ---
+        // 4 levels: MAX -> MIN -> MAX -> MIN -> Leaves
+        // For simplicity of rendering in the same space, we'll map it to a similar 3-level structure conceptually,
+        // or just build the specific nodes.
+        const nodes_q1 = {
+             'root': { id: 'root', type: 'max', label: '', x: 50, y: 10 },
+             
+             'm1_l': { id: 'm1_l', type: 'min', label: '', x: 20, y: 35 },
+             'm1_m': { id: 'm1_m', type: 'min', label: '', x: 50, y: 35 },
+             'm1_r': { id: 'm1_r', type: 'min', label: '', x: 80, y: 35 },
+             
+             'M2_ll': { id: 'M2_ll', type: 'max', label: '', x: 10, y: 60 },
+             'M2_lr': { id: 'M2_lr', type: 'max', label: '', x: 30, y: 60 },
+             'M2_ml': { id: 'M2_ml', type: 'max', label: '', x: 40, y: 60 },
+             'M2_mr': { id: 'M2_mr', type: 'max', label: '', x: 60, y: 60 },
+             'M2_rl': { id: 'M2_rl', type: 'max', label: '', x: 70, y: 60 },
+             'M2_rr': { id: 'M2_rr', type: 'max', label: '', x: 90, y: 60 },
+
+             // Treating the bottom MIN -> Leaf as just leaf evaluation for visual simplicity here,
+             // as the core alpha-beta logic happens above.
+             'l_ll1': { id: 'l_ll1', type: 'leaf', label: '5', val: 5, x: 7, y: 85 },
+             'l_lr1': { id: 'l_lr1', type: 'leaf', label: '4', val: 4, x: 25, y: 85 },
+             'l_lr2': { id: 'l_lr2', type: 'leaf', label: '7', val: 7, x: 30, y: 85 },
+             'l_lr3': { id: 'l_lr3', type: 'leaf', label: '3', val: 3, x: 35, y: 85 },
+             
+             'l_ml1': { id: 'l_ml1', type: 'leaf', label: '6', val: 6, x: 37, y: 85 },
+             'l_mr1': { id: 'l_mr1', type: 'leaf', label: '7', val: 7, x: 55, y: 85 },
+             'l_mr2': { id: 'l_mr2', type: 'leaf', label: '9', val: 9, x: 65, y: 85 },
+
+             'l_rl1': { id: 'l_rl1', type: 'leaf', label: '5', val: 5, x: 67, y: 85 },
+             'l_rr1': { id: 'l_rr1', type: 'leaf', label: '9', val: 9, x: 85, y: 85 },
+             'l_rr2': { id: 'l_rr2', type: 'leaf', label: '8', val: 8, x: 90, y: 85 },
+             'l_rr3': { id: 'l_rr3', type: 'leaf', label: '6', val: 6, x: 95, y: 85 },
+        };
+        const edges_q1 = [
+            ['root', 'm1_l'], ['root', 'm1_m'], ['root', 'm1_r'],
+            ['m1_l', 'M2_ll'], ['m1_l', 'M2_lr'],
+            ['m1_m', 'M2_ml'], ['m1_m', 'M2_mr'],
+            ['m1_r', 'M2_rl'], ['m1_r', 'M2_rr'],
+            ['M2_ll', 'l_ll1'],
+            ['M2_lr', 'l_lr1'], ['M2_lr', 'l_lr2'], ['M2_lr', 'l_lr3'],
+            ['M2_ml', 'l_ml1'],
+            ['M2_mr', 'l_mr1'], ['M2_mr', 'l_mr2'],
+            ['M2_rl', 'l_rl1'],
+            ['M2_rr', 'l_rr1'], ['M2_rr', 'l_rr2'], ['M2_rr', 'l_rr3']
+        ];
+        const steps_q1 = [
+             { action: 'activate', node: 'root', msg: 'Start at Root (MAX). Initial bounds: &alpha;=-&infin;, &beta;=&infin;', update: {root: {a: '-&infin;', b: '&infin;'}} },
+             { action: 'activate', node: 'm1_l', msg: 'Explore left MIN child.', update: {m1_l: {a: '-&infin;', b: '&infin;'}} },
+             
+             { action: 'activate', node: 'M2_ll', msg: 'Explore first MAX child.', update: {M2_ll: {a: '-&infin;', b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_ll1'], msg: 'Evaluate leaf: 5.' },
+             { action: 'update', node: 'M2_ll', val: '5', msg: 'MAX chooses 5.', update: {M2_ll: {v: 5}} },
+             { action: 'update', node: 'm1_l', val: '5', msg: 'MIN updates &beta; to 5.', update: {m1_l: {a: '-&infin;', b: 5}} },
+
+             { action: 'activate', node: 'M2_lr', msg: 'Explore next MAX child.', update: {M2_lr: {a: '-&infin;', b: 5}} },
+             { action: 'evaluate', nodes: ['l_lr1'], msg: 'Evaluate leaf: 4.' },
+             { action: 'update', node: 'M2_lr', val: '4', msg: 'MAX updates &alpha; to 4.', update: {M2_lr: {a: 4, b: 5}} },
+             { action: 'evaluate', nodes: ['l_lr2'], msg: 'Evaluate leaf: 7.' },
+             { action: 'update', node: 'M2_lr', val: '7', msg: 'MAX updates &alpha; to 7.', update: {M2_lr: {a: 7, b: 5}} },
+             { action: 'prune', nodes: ['l_lr3'], msg: 'PRUNE! &alpha; (7) &ge; &beta; (5). Beta cut-off.' },
+             
+             { action: 'update', node: 'm1_l', val: '4', msg: 'MIN chooses minimum (5, 4) -> 4.', update: {m1_l: {v: 4}} },
+             { action: 'update', node: 'root', val: '4', msg: 'Root MAX updates &alpha; to 4.', update: {root: {a: 4, b: '&infin;'}} },
+
+             { action: 'activate', node: 'm1_m', msg: 'Explore middle MIN child.', update: {m1_m: {a: 4, b: '&infin;'}} },
+             { action: 'activate', node: 'M2_ml', msg: 'Explore first MAX child.', update: {M2_ml: {a: 4, b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_ml1'], msg: 'Evaluate leaf: 6.' },
+             { action: 'update', node: 'M2_ml', val: '6', msg: 'MAX chooses 6.', update: {M2_ml: {v: 6}} },
+             { action: 'update', node: 'm1_m', val: '6', msg: 'MIN updates &beta; to 6.', update: {m1_m: {a: 4, b: 6}} },
+
+             { action: 'activate', node: 'M2_mr', msg: 'Explore next MAX child.', update: {M2_mr: {a: 4, b: 6}} },
+             { action: 'evaluate', nodes: ['l_mr1'], msg: 'Evaluate leaf: 7.' },
+             { action: 'update', node: 'M2_mr', val: '7', msg: 'MAX updates &alpha; to 7.', update: {M2_mr: {a: 7, b: 6}} },
+             { action: 'prune', nodes: ['l_mr2'], msg: 'PRUNE! &alpha; (7) &ge; &beta; (6). Beta cut-off.' },
+
+             { action: 'update', node: 'm1_m', val: '6', msg: 'MIN completes. Returns 6.', update: {m1_m: {v: 6}} },
+             { action: 'update', node: 'root', val: '6', msg: 'Root MAX updates &alpha; to max(4,6) = 6.', update: {root: {a: 6, b: '&infin;'}} },
+
+             { action: 'activate', node: 'm1_r', msg: 'Explore right MIN child.', update: {m1_r: {a: 6, b: '&infin;'}} },
+             { action: 'activate', node: 'M2_rl', msg: 'Explore first MAX child.', update: {M2_rl: {a: 6, b: '&infin;'}} },
+             { action: 'evaluate', nodes: ['l_rl1'], msg: 'Evaluate leaf: 5.' },
+             { action: 'update', node: 'M2_rl', val: '5', msg: 'MAX chooses 5.', update: {M2_rl: {v: 5}} },
+             { action: 'update', node: 'm1_r', val: '5', msg: 'MIN updates &beta; to 5.', update: {m1_r: {a: 6, b: 5}} },
+
+             { action: 'prune_massive', nodes: ['M2_rr', 'l_rr1', 'l_rr2', 'l_rr3'], edges: [['m1_r','M2_rr']], msg: 'MASSIVE PRUNE! &beta; (5) &le; &alpha; (6). Alpha cut-off. Root MAX will never choose this path.' },
+             { action: 'finish', node: 'root', val: '6', msg: 'Search Complete! Final optimal value at root is 6.', update: {root: {v: 6}} }
+        ];
+
+        let nodes = nodes_q2;
+        let edges = edges_q2;
+        let steps = steps_q2;
+        
+        let currentStepIndex = -1;
+        const container = document.getElementById('graph-container');
+        const svgLayer = document.getElementById('svg-layer');
+
+        function loadSelectedTree() {
+            const selection = document.getElementById('tree-select').value;
+            if (selection === 'q2') {
+                nodes = nodes_q2; edges = edges_q2; steps = steps_q2;
+            } else if (selection === 'slide') {
+                nodes = nodes_slide; edges = edges_slide; steps = steps_slide;
+            } else if (selection === 'q1') {
+                nodes = nodes_q1; edges = edges_q1; steps = steps_q1;
+            }
+            
+            // Clear current graph
+            svgLayer.innerHTML = '';
+            document.querySelectorAll('.node').forEach(e => e.remove());
+            
+            renderGraph();
+            resetTrace();
+        }
+
+        function renderGraph() {
+            // Render Edges
+            edges.forEach(edge => {
+                const n1 = nodes[edge[0]];
+                const n2 = nodes[edge[1]];
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                // Calculate percentage based coordinates relative to container
+                line.setAttribute('x1', `${n1.x}%`);
+                line.setAttribute('y1', `${n1.y}%`);
+                line.setAttribute('x2', `${n2.x}%`);
+                line.setAttribute('y2', `${n2.y}%`);
+                line.id = `edge-${edge[0]}-${edge[1]}`;
+                svgLayer.appendChild(line);
+            });
+
+            // Render Nodes
+            Object.values(nodes).forEach(node => {
+                const div = document.createElement('div');
+                div.className = `node ${node.type}`;
+                div.id = `node-${node.id}`;
+                div.style.left = `${node.x}%`;
+                div.style.top = `${node.y}%`;
+                div.innerText = node.label;
+
+                // Value container
+                const valDiv = document.createElement('div');
+                valDiv.className = 'node-values';
+                valDiv.id = `val-${node.id}`;
+                valDiv.innerHTML = ''; // Start empty
+                div.appendChild(valDiv);
+
+                container.appendChild(div);
+            });
+            
+            document.getElementById('total-steps').innerText = steps.length;
+        }
+
+        function logMsg(msg, typeClass='') {
+            const logPanel = document.getElementById('log-container');
+            logPanel.innerHTML += `<div class="log-entry ${typeClass}">${msg}</div>`;
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function updateNodeValues(nodeId, updateObj) {
+            if(!updateObj) return;
+            const nodeEl = document.getElementById(`node-${nodeId}`);
+            const valEl = document.getElementById(`val-${nodeId}`);
+            
+            let html = [];
+            if(updateObj.a !== undefined) html.push(`<span class="val-alpha">&alpha;=${updateObj.a}</span>`);
+            if(updateObj.b !== undefined) html.push(`<span class="val-beta">&beta;=${updateObj.b}</span>`);
+            if(updateObj.v !== undefined) {
+                html.push(`<span class="val-v">v=${updateObj.v}</span>`);
+                // Also update the inner text of non-leaf nodes if they get a final value
+                if(nodes[nodeId].type !== 'leaf') {
+                    // Find text node and replace, keep valDiv
+                    for(let i=0; i<nodeEl.childNodes.length; i++) {
+                        if(nodeEl.childNodes[i].nodeType === Node.TEXT_NODE) {
+                            nodeEl.childNodes[i].nodeValue = updateObj.v;
+                            break;
+                        }
+                    }
+                    if(nodeEl.innerText === "") nodeEl.prepend(document.createTextNode(updateObj.v));
+                }
+            }
+            
+            if(html.length > 0) {
+                valEl.innerHTML = html.join(' | ');
+                nodeEl.classList.add('has-values');
+            }
+        }
+
+        function nextStep() {
+            if (currentStepIndex >= steps.length - 1) return;
+            currentStepIndex++;
+            
+            document.getElementById('step-counter').innerText = currentStepIndex + 1;
+            const step = steps[currentStepIndex];
+
+            // Clear previous active states (except for highlighting specific things)
+            document.querySelectorAll('.node.active').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.active-edge').forEach(el => el.classList.remove('active-edge'));
+
+            if (step.action === 'activate') {
+                const nodeEl = document.getElementById(`node-${step.node}`);
+                nodeEl.classList.add('active');
+                logMsg(`[ACTIVATE] ${step.msg}`, 'hl-action');
+                if(step.update) updateNodeValues(step.node, step.update[step.node]);
+                
+                // Highlight edge from parent if possible
+                edges.forEach(e => {
+                    if(e[1] === step.node) document.getElementById(`edge-${e[0]}-${e[1]}`).classList.add('active-edge');
+                });
+
+            } else if (step.action === 'evaluate') {
+                step.nodes.forEach(nid => {
+                    document.getElementById(`node-${nid}`).classList.add('active');
+                });
+                logMsg(`[EVALUATE] ${step.msg}`, 'hl-info');
+            } else if (step.action === 'update') {
+                const nodeEl = document.getElementById(`node-${step.node}`);
+                nodeEl.classList.add('active');
+                logMsg(`[UPDATE] ${step.msg}`, 'hl-update');
+                if(step.update) updateNodeValues(step.node, step.update[step.node]);
+            } else if (step.action === 'prune') {
+                step.nodes.forEach(nid => {
+                    const el = document.getElementById(`node-${nid}`);
+                    el.classList.add('pruned');
+                    // Find edges to this pruned node
+                    edges.forEach(e => {
+                        if(e[1] === nid) document.getElementById(`edge-${e[0]}-${e[1]}`).classList.add('pruned-edge');
+                    });
+                });
+                logMsg(`[PRUNE] ${step.msg}`, 'hl-prune');
+            } else if (step.action === 'prune_massive') {
+                step.nodes.forEach(nid => document.getElementById(`node-${nid}`).classList.add('pruned'));
+                step.edges.forEach(e => document.getElementById(`edge-${e[0]}-${e[1]}`).classList.add('pruned-edge'));
+                edges.forEach(e => {
+                   if(step.nodes.includes(e[0]) && step.nodes.includes(e[1])) {
+                       document.getElementById(`edge-${e[0]}-${e[1]}`).classList.add('pruned-edge');
+                   } 
+                });
+                logMsg(`[MASSIVE PRUNE] ${step.msg}`, 'hl-prune');
+            } else if (step.action === 'finish') {
+                document.getElementById(`node-${step.node}`).classList.add('active');
+                logMsg(`[DONE] ${step.msg}`, 'hl-update');
+                if(step.update) updateNodeValues(step.node, step.update[step.node]);
+                document.getElementById('btn-next').disabled = true;
+            }
+        }
+
+        function resetTrace() {
+            currentStepIndex = -1;
+            document.getElementById('step-counter').innerText = 0;
+            document.getElementById('btn-next').disabled = false;
+            
+            // Reset nodes
+            document.querySelectorAll('.node').forEach(el => {
+                el.classList.remove('active', 'evaluated', 'pruned', 'has-values');
+                // Remove text values from non-leaf nodes
+                const nid = el.id.replace('node-', '');
+                if(nodes[nid].type !== 'leaf') {
+                    for(let i=0; i<el.childNodes.length; i++) {
+                        if(el.childNodes[i].nodeType === Node.TEXT_NODE) {
+                            el.childNodes[i].nodeValue = "";
+                        }
+                    }
+                }
+            });
+            document.querySelectorAll('.node-values').forEach(el => el.innerHTML = '');
+            
+            // Reset edges
+            document.querySelectorAll('line').forEach(el => {
+                el.classList.remove('active-edge', 'pruned-edge');
+            });
+
+            // Reset log
+            const logPanel = document.getElementById('log-container');
+            logPanel.innerHTML = '<div class="log-entry hl-info">System reset. Ready to start.</div>';
+        }
+
+        // Initialize
+        window.onload = () => {
+            loadSelectedTree();
+        };
+
+    </script>
+</body>
+</html>

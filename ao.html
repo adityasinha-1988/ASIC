@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Classroom Portal - AO* & Blocks World</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        /* Header & Tabs */
+        .header {
+            width: 100%;
+            background: #1e293b;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border-bottom: 2px solid #38bdf8;
+        }
+        h1 { color: #38bdf8; font-size: 28px; margin-bottom: 10px; }
+        
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            background: #334155;
+            color: #94a3b8;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            background: #0284c7;
+            color: white;
+            border-color: #38bdf8;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+        .tab-btn:hover:not(.active) { background: #475569; color: white; }
+
+        /* Container */
+        .tab-content {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        .tab-content.active { display: flex; flex-direction: column; align-items: center; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Controls */
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; width: 100%; justify-content: center; }
+        button.action-btn {
+            padding: 12px 24px; font-size: 16px; font-weight: bold; color: white;
+            background-color: #059669; border: none; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: 0.2s;
+        }
+        button.action-btn:hover { background-color: #047857; transform: translateY(-2px); }
+        button.action-btn:disabled { background-color: #475569; cursor: not-allowed; transform: none; }
+        button.reset-btn { background-color: #e11d48; }
+        button.reset-btn:hover { background-color: #be123c; }
+
+        /* Canvas Container */
+        .canvas-holder {
+            position: relative; width: 100%; max-width: 1000px; background: #1e293b;
+            border-radius: 12px; border: 1px solid #334155; overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px;
+        }
+        canvas { display: block; width: 100%; height: 600px; }
+
+        /* Blocks World Styles */
+        .bw-container { display: flex; justify-content: space-around; width: 100%; gap: 30px; flex-wrap: wrap; }
+        .board-panel {
+            background: #1e293b; padding: 20px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            flex: 1; min-width: 350px; display: flex; flex-direction: column; align-items: center; border: 1px solid #334155;
+        }
+        .board-panel h2 { color: #f8fafc; margin-bottom: 15px; font-size: 20px; }
+        .table-surface {
+            border-bottom: 8px solid #64748b; display: flex; justify-content: space-around; align-items: flex-end;
+            width: 100%; height: 260px; padding-bottom: 5px; margin-bottom: 15px; background: #0f172a; border-radius: 8px 8px 0 0;
+        }
+        .stack {
+            display: flex; flex-direction: column-reverse; width: 90px; height: 100%;
+            align-items: center; justify-content: flex-start; border: 2px dashed transparent; transition: all 0.3s;
+        }
+        .stack.drag-over { border: 2px dashed #38bdf8; background-color: rgba(56, 189, 248, 0.1); border-radius: 8px; }
+        
+        .block {
+            width: 70px; height: 70px; display: flex; justify-content: center; align-items: center;
+            font-size: 32px; font-weight: bold; color: white; border-radius: 8px; margin-top: 5px;
+            box-shadow: inset 0 -4px 0 rgba(0,0,0,0.3), 0 4px 6px rgba(0,0,0,0.4); transition: transform 0.1s;
+        }
+        .block[draggable="true"] { cursor: grab; }
+        .block[draggable="true"]:active { cursor: grabbing; transform: scale(1.05); }
+        .block-A { background-color: #e11d48; } .block-B { background-color: #f59e0b; color: #1e293b; } .block-C { background-color: #10b981; }
+        
+        .log-box {
+            background: #0f172a; color: #38bdf8; padding: 20px; font-family: 'Courier New', Courier, monospace;
+            font-size: 16px; border-radius: 10px; margin-top: 10px; min-height: 140px; width: 100%; border: 1px solid #334155;
+        }
+        .text-red { color: #ef4444; } .text-green { color: #10b981; } .text-yellow { color: #f59e0b; font-weight: bold; font-size: 1.2em;}
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>AI Algorithms Interactive Portal</h1>
+        <p style="color: #cbd5e1;">Complete Visualization Tool for Class Demonstration</p>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('ao-tab')">AO* Search (Handwritten Graph)</button>
+            <button class="tab-btn" onclick="switchTab('bw-tab')">Blocks World (Drag & Drop)</button>
+        </div>
+    </div>
+
+    <!-- TAB 1: AO* Algorithm -->
+    <div id="ao-tab" class="tab-content active">
+        <div class="controls">
+            <button class="action-btn" id="btn-next" onclick="nextAOStep()">Next Step ▶</button>
+            <button class="action-btn reset-btn" onclick="resetAO()">Reset Graph 🔄</button>
+        </div>
+
+        <div class="canvas-holder">
+            <canvas id="graphCanvas" width="1000" height="600"></canvas>
+        </div>
+    </div>
+
+    <!-- TAB 2: Blocks World -->
+    <div id="bw-tab" class="tab-content">
+        <p style="color: #cbd5e1; margin-bottom: 20px; font-size: 16px;">
+            <b>Heuristic Rule:</b> +1 if block is on correct support, -1 if on wrong support.<br>
+            <i>Drag and drop the <b>top</b> blocks to reach the Target State (Score: +3).</i>
+        </p>
+
+        <div class="bw-container">
+            <div class="board-panel">
+                <h2>Goal State (Target)</h2>
+                <div class="table-surface">
+                    <div class="stack">
+                        <div class="block block-C">C</div>
+                        <div class="block block-B">B</div>
+                        <div class="block block-A">A</div>
+                    </div>
+                    <div class="stack"></div>
+                    <div class="stack"></div>
+                </div>
+                <p style="color: #4ade80; font-size: 18px;"><b>Target Score: +3</b></p>
+            </div>
+
+            <div class="board-panel">
+                <h2>Current State (Interactive)</h2>
+                <div class="table-surface" id="current-table"></div>
+                <button class="action-btn reset-btn" style="margin-top: 15px;" onclick="resetBW()">Reset State</button>
+            </div>
+        </div>
+
+        <div class="log-box" id="log-console">System Initialized...</div>
+    </div>
+
+    <script>
+        // ==========================================
+        // TAB SWITCHING LOGIC
+        // ==========================================
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+
+            if (tabId === 'ao-tab') drawAOGraph();
+        }
+
+        // ==========================================
+        // AO* SEARCH VISUALIZER (From Uploaded Image)
+        // ==========================================
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        let aoStep = 0;
+
+        // Graph data matching the handwritten image
+        let aoNodes = {};
+        let aoEdges = [];
+        let aoArcs = [];
+        let calcBadges = [];
+
+        function initAOGraph() {
+            aoNodes = {
+                'A': { x: 500, y: 80, h: 11, updated: null, solved: false },
+                'B': { x: 300, y: 220, h: 6, updated: null, solved: false },
+                'C': { x: 500, y: 220, h: 12, updated: null, solved: false },
+                'D': { x: 750, y: 220, h: 10, updated: null, solved: false },
+                'G': { x: 200, y: 380, h: 5, updated: null, solved: false },
+                'H': { x: 400, y: 380, h: 7, updated: null, solved: false },
+                'J': { x: 500, y: 380, h: 1, updated: null, solved: false },
+                'E': { x: 670, y: 400, h: 4, updated: null, solved: false },
+                'F': { x: 830, y: 400, h: 4, updated: null, solved: false },
+                'I': { x: 200, y: 520, h: 1, updated: null, solved: false }
+            };
+
+            aoEdges = [
+                { f: 'A', t: 'B', c: 1 }, { f: 'A', t: 'C', c: 1 }, { f: 'A', t: 'D', c: 1 },
+                { f: 'B', t: 'G', c: 1 }, { f: 'B', t: 'H', c: 1 },
+                { f: 'C', t: 'J', c: 1 },
+                { f: 'D', t: 'E', c: 1 }, { f: 'D', t: 'F', c: 1 },
+                { f: 'G', t: 'I', c: 1 }
+            ];
+
+            aoArcs = [
+                { p: 'A', c1: 'B', c2: 'C' },
+                { p: 'D', c1: 'E', c2: 'F' }
+            ];
+
+            calcBadges = [];
+            aoStep = 0;
+            document.getElementById('btn-next').disabled = false;
+        }
+
+        function drawAOGraph() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Edges
+            aoEdges.forEach(e => {
+                let n1 = aoNodes[e.f]; let n2 = aoNodes[e.t];
+                ctx.beginPath();
+                ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y);
+                ctx.strokeStyle = '#475569'; ctx.lineWidth = 2; ctx.stroke();
+
+                // Draw edge cost (purple like image)
+                let mx = (n1.x + n2.x)/2; let my = (n1.y + n2.y)/2;
+                ctx.fillStyle = '#c084fc'; ctx.font = "bold 16px Arial";
+                ctx.fillText("1", mx + 10, my - 10);
+            });
+
+            // Draw AND Arcs
+            aoArcs.forEach(a => {
+                let p = aoNodes[a.p]; let c1 = aoNodes[a.c1]; let c2 = aoNodes[a.c2];
+                let mx1 = p.x + (c1.x - p.x)*0.25; let my1 = p.y + (c1.y - p.y)*0.25;
+                let mx2 = p.x + (c2.x - p.x)*0.25; let my2 = p.y + (c2.y - p.y)*0.25;
+                
+                ctx.beginPath();
+                ctx.moveTo(mx1, my1);
+                ctx.quadraticCurveTo(p.x, p.y + 60, mx2, my2);
+                ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 3; ctx.stroke();
+            });
+
+            // Draw Nodes
+            for (let id in aoNodes) {
+                let n = aoNodes[id];
+                
+                // Box
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(n.x - 20, n.y - 20, 40, 40);
+                ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2;
+                ctx.strokeRect(n.x - 20, n.y - 20, 40, 40);
+
+                // Label
+                ctx.fillStyle = '#0f172a'; ctx.font = "bold 20px Arial";
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(id, n.x, n.y);
+
+                // Initial Heuristic (Red)
+                ctx.fillStyle = '#ef4444'; ctx.font = "bold 18px Arial";
+                ctx.textAlign = "left";
+                
+                if (n.updated !== null) {
+                    // Strike through old red value
+                    let textW = ctx.measureText(n.h).width;
+                    ctx.fillText(n.h, n.x + 25, n.y - 10);
+                    ctx.beginPath();
+                    ctx.moveTo(n.x + 23, n.y - 10); ctx.lineTo(n.x + 27 + textW, n.y - 10);
+                    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.stroke();
+
+                    // Draw updated value (Blue)
+                    ctx.fillStyle = '#38bdf8'; ctx.font = "bold 22px Arial";
+                    ctx.fillText(n.updated, n.x + 25, n.y + 15);
+                } else {
+                    ctx.fillText(n.h, n.x + 25, n.y - 10);
+                }
+            }
+
+            // Draw Calc Badges
+            calcBadges.forEach(b => drawBadge(b.x, b.y, b.text));
+
+            // Banner
+            drawBanner();
+        }
+
+        function drawBadge(x, y, text) {
+            let lines = text.split('\n');
+            ctx.font = "12px Consolas";
+            let maxW = 0; lines.forEach(l => { maxW = Math.max(maxW, ctx.measureText(l).width); });
+            let boxW = maxW + 20; let boxH = lines.length * 16 + 10;
+            
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+            ctx.fillRect(x - boxW/2, y - boxH/2, boxW, boxH);
+            ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+            ctx.strokeRect(x - boxW/2, y - boxH/2, boxW, boxH);
+
+            ctx.fillStyle = '#f8fafc'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            lines.forEach((line, idx) => {
+                ctx.fillText(line, x, y - boxH/2 + 14 + idx * 16);
+            });
+        }
+
+        function drawBanner() {
+            let msg = "Step 0: Initial AND-OR Graph loaded with Red Heuristic values.";
+            if (aoStep === 1) msg = "Step 1: Evaluate lower nodes (G, C, D). Update values bottom-up.";
+            else if (aoStep === 2) msg = "Step 2: Evaluate Node B. It's an OR node, select min(G path, H path).";
+            else if (aoStep === 3) msg = "Step 3: Evaluate Root A. Compare AND path (B,C) vs OR path (D).";
+            
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(10, 10, canvas.width - 20, 40);
+            ctx.strokeStyle = '#4ade80'; ctx.strokeRect(10, 10, canvas.width - 20, 40);
+            ctx.fillStyle = '#f8fafc'; ctx.font = "bold 16px Arial";
+            ctx.textAlign = "left"; ctx.fillText("▶ " + msg, 25, 30);
+        }
+
+        function nextAOStep() {
+            aoStep++;
+            calcBadges = [];
+
+            if (aoStep === 1) {
+                // Update G, C, D
+                aoNodes['G'].updated = 2; // 1 + 1
+                aoNodes['C'].updated = 2; // 1 + 1
+                aoNodes['D'].updated = 10; // (1+4) + (1+4)
+
+                calcBadges.push({ x: 100, y: 320, text: "c(G) = 1 + h(I)\n= 1 + 1 = 2" });
+                calcBadges.push({ x: 500, y: 300, text: "c(C) = 1 + h(J)\n= 1 + 1 = 2" });
+                calcBadges.push({ x: 750, y: 320, text: "c(D) = (1+4) + (1+4)\n= 10" });
+            }
+            else if (aoStep === 2) {
+                // Update B
+                aoNodes['B'].updated = 3; // min(1+2, 1+7)
+                calcBadges.push({ x: 200, y: 150, text: "Path G: 1+2 = 3\nPath H: 1+7 = 8\nc(B) = min(3,8) = 3" });
+            }
+            else if (aoStep === 3) {
+                // Update A
+                aoNodes['A'].updated = 7; // min( (1+3)+(1+2), 1+10 )
+                calcBadges.push({ x: 400, y: 120, text: "AND(B,C): (1+3) + (1+2) = 7" });
+                calcBadges.push({ x: 650, y: 100, text: "OR(D): 1 + 10 = 11" });
+                calcBadges.push({ x: 500, y: 30, text: "c(A) = min(7, 11) = 7" });
+                
+                document.getElementById('btn-next').disabled = true;
+            }
+            
+            drawAOGraph();
+        }
+
+        function resetAO() {
+            initAOGraph();
+            drawAOGraph();
+        }
+
+        // ==========================================
+        // BLOCKS WORLD LOGIC (Drag & Drop)
+        // ==========================================
+        const goalSupports = { 'A': 'B', 'B': 'C', 'C': 'Table' };
+        let bwState = [];
+        let draggedFromIndex = null;
+
+        function resetBW() {
+            bwState = [ ['B', 'A'], ['C'], [] ]; 
+            renderBWBoard();
+        }
+
+        function renderBWBoard() {
+            const tableDiv = document.getElementById('current-table');
+            tableDiv.innerHTML = '';
+
+            bwState.forEach((stack, index) => {
+                const stackDiv = document.createElement('div');
+                stackDiv.className = 'stack';
+                stackDiv.dataset.index = index;
+
+                stackDiv.addEventListener('dragover', (e) => { e.preventDefault(); stackDiv.classList.add('drag-over'); });
+                stackDiv.addEventListener('dragleave', () => { stackDiv.classList.remove('drag-over'); });
+                stackDiv.addEventListener('drop', (e) => {
+                    e.preventDefault(); stackDiv.classList.remove('drag-over');
+                    handleBWDrop(index);
+                });
+
+                stack.forEach((block, blockIndex) => {
+                    const bDiv = document.createElement('div');
+                    bDiv.className = `block block-${block}`;
+                    bDiv.innerText = block;
+
+                    if (blockIndex === stack.length - 1) { // Only top block
+                        bDiv.draggable = true;
+                        bDiv.addEventListener('dragstart', () => { draggedFromIndex = index; setTimeout(() => bDiv.style.opacity = '0.5', 0); });
+                        bDiv.addEventListener('dragend', () => { bDiv.style.opacity = '1'; });
+                    }
+                    stackDiv.appendChild(bDiv);
+                });
+                tableDiv.appendChild(stackDiv);
+            });
+
+            calculateBWHeuristic();
+        }
+
+        function handleBWDrop(droppedToIndex) {
+            if (draggedFromIndex === null || draggedFromIndex === droppedToIndex) return;
+            let movingBlock = bwState[draggedFromIndex].pop();
+            bwState[droppedToIndex].push(movingBlock);
+            renderBWBoard();
+        }
+
+        function calculateBWHeuristic() {
+            let logHTML = "<b>[Live Optimization Calculation]</b><br><br>";
+            let totalScore = 0;
+            let currentSupports = {};
+
+            bwState.forEach(stack => {
+                for (let i = 0; i < stack.length; i++) {
+                    let block = stack[i];
+                    let support = (i === 0) ? 'Table' : stack[i - 1];
+                    currentSupports[block] = support;
+                }
+            });
+
+            ['A', 'B', 'C'].forEach(block => {
+                let currentSup = currentSupports[block];
+                let goalSup = goalSupports[block];
+                if (currentSup === goalSup) {
+                    totalScore += 1;
+                    logHTML += `<span class="text-green">✔ Block ${block} is correctly placed on ${currentSup} (+1)</span><br>`;
+                } else {
+                    totalScore -= 1;
+                    logHTML += `<span class="text-red">✘ Block ${block} is on ${currentSup} (Needs to be on ${goalSup}) (-1)</span><br>`;
+                }
+            });
+
+            logHTML += `<br><b>Current Heuristic Score h(n) = ${totalScore}</b><br>`;
+            if (totalScore === 3) logHTML += `<br><span class="text-yellow">🎉 GOAL STATE ACHIEVED! Global Optimum reached! 🎉</span>`;
+
+            document.getElementById('log-console').innerHTML = logHTML;
+        }
+
+        // Initialize both
+        initAOGraph();
+        drawAOGraph();
+        resetBW();
+
+    </script>
+</body>
+</html>

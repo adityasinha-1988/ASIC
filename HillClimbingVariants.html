@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Hill Climbing Variants Visualizer</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #38bdf8; margin-bottom: 5px; text-align: center; }
+        .subtitle { color: #94a3b8; margin-bottom: 20px; font-size: 15px; text-align: center; }
+
+        .control-panel {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 1000px;
+        }
+        
+        select, button {
+            padding: 10px 15px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            outline: none;
+            cursor: pointer;
+        }
+        select { background: #0f172a; color: #38bdf8; }
+        
+        button {
+            background-color: #38bdf8;
+            color: #0f172a;
+            transition: background 0.3s, transform 0.1s;
+            border: none;
+        }
+        button:hover { background-color: #0ea5e9; transform: translateY(-2px); }
+        button:disabled { background-color: #475569; cursor: not-allowed; transform: none; }
+        
+        #btn-stop { background-color: #f43f5e; color: white; }
+        #btn-stop:hover { background-color: #e11d48; }
+
+        .dashboard {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .stat-card {
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 10px;
+            flex: 1;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            border-bottom: 3px solid #38bdf8;
+        }
+        .stat-card h3 { margin: 0 0 5px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; }
+        .stat-value { font-size: 22px; font-weight: bold; color: #f8fafc; }
+        .val-highlight { color: #4ade80; } /* Green for Objective */
+        .val-warn { color: #facc15; } /* Yellow for status */
+
+        #plot {
+            width: 100%;
+            max-width: 1000px;
+            height: 600px;
+            background: transparent;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 3D Hill Climbing Optimization Visualizer</h1>
+    <div class="subtitle">Interactive 3D Search Space: Rotate, Zoom, and Compare Algorithms Live</div>
+
+    <div class="control-panel">
+        <select id="algoSelect">
+            <option value="simple">1. Simple (Greedy) Hill Climbing</option>
+            <option value="stochastic">2. Stochastic (Random Walk) Hill Climbing</option>
+            <option value="restart">3. Random Restart Hill Climbing</option>
+            <option value="annealing">4. Simulated Annealing</option>
+        </select>
+        <button id="btn-start" onclick="startSearch()">Start Auto-Run</button>
+        <button id="btn-stop" onclick="stopSearch()" disabled>Stop</button>
+    </div>
+
+    <div class="dashboard">
+        <div class="stat-card">
+            <h3>Algorithm Status</h3>
+            <div class="stat-value val-warn" id="statusText">Ready</div>
+        </div>
+        <div class="stat-card">
+            <h3>Current State (X, Y)</h3>
+            <div class="stat-value">(<span id="currX">0.00</span>, <span id="currY">0.00</span>)</div>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #4ade80;">
+            <h3>Objective Function f(x,y)</h3>
+            <div class="stat-value val-highlight" id="currZ">0.00</div>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #f43f5e;">
+            <h3>Steps Taken</h3>
+            <div class="stat-value" id="stepCount" style="color: #f43f5e;">0</div>
+        </div>
+    </div>
+
+    <div id="plot"></div>
+
+    <script>
+        // --- 1. Objective Function Landscape (4 Peaks from Source) ---
+        function f(x, y) {
+            let peak1 = 10 * Math.exp(-((x - 5)**2 + (y - 5)**2) / 10);   // Global Max (5, 5) Height ~10
+            let peak2 = 6 * Math.exp(-((x + 5)**2 + (y + 5)**2) / 8);     // Local Max (-5, -5) Height ~6
+            let peak3 = 7 * Math.exp(-((x + 5)**2 + (y - 5)**2) / 8);     // Local Max (-5, 5) Height ~7
+            let peak4 = 4 * Math.exp(-((x - 5)**2 + (y + 5)**2) / 8);     // Local Max (5, -5) Height ~4
+            return peak1 + peak2 + peak3 + peak4;
+        }
+
+        // --- 2. Initial Setup for Plotly ---
+        let xData = [], yData = [], zData = [];
+        for (let i = -10; i <= 10; i += 0.5) {
+            xData.push(i);
+            yData.push(i);
+        }
+        for (let j = 0; j < yData.length; j++) {
+            let zRow = [];
+            for (let i = 0; i < xData.length; i++) {
+                zRow.push(f(xData[i], yData[j]));
+            }
+            zData.push(zRow);
+        }
+
+        // Trace 0: The Static Mountain
+        let surfaceTrace = {
+            z: zData, x: xData, y: yData,
+            type: 'surface',
+            colorscale: 'Viridis',
+            opacity: 0.85,
+            showscale: false,
+            hoverinfo: 'none'
+        };
+
+        // Trace 1: The Trail (White Line)
+        let pathTrace = {
+            x: [], y: [], z: [],
+            mode: 'lines',
+            type: 'scatter3d',
+            line: { color: '#ffffff', width: 5 },
+            name: 'Agent Path'
+        };
+
+        // Trace 2: The Current Position (Large Yellow Dot)
+        let headTrace = {
+            x: [], y: [], z: [],
+            mode: 'markers',
+            type: 'scatter3d',
+            marker: { size: 8, color: '#facc15', line: {color: '#000', width: 1} }, 
+            name: 'Current State'
+        };
+
+        let layout = {
+            margin: { l: 0, r: 0, b: 0, t: 0 },
+            scene: {
+                xaxis: { title: 'X Axis', range: [-10, 10] },
+                yaxis: { title: 'Y Axis', range: [-10, 10] },
+                zaxis: { title: 'Objective Value', range: [0, 12] },
+                camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
+            },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            showlegend: false
+        };
+
+        // Draw ONLY ONCE to prevent freezing
+        Plotly.newPlot('plot', [surfaceTrace, pathTrace, headTrace], layout);
+
+        // --- 3. Algorithm State & Logic ---
+        let pathX = [], pathY = [], pathZ = [];
+        let currentX, currentY, currentZ;
+        let step = 0;
+        let intervalId = null;
+        let temperature = 10.0;
+        let restartCount = 0;
+
+        function updateUI(statusMsg, colorClass = "val-warn") {
+            document.getElementById('currX').innerText = currentX.toFixed(2);
+            document.getElementById('currY').innerText = currentY.toFixed(2);
+            document.getElementById('currZ').innerText = currentZ.toFixed(2);
+            document.getElementById('stepCount').innerText = step;
+            
+            let statusEl = document.getElementById('statusText');
+            statusEl.innerText = statusMsg;
+            statusEl.className = "stat-value " + colorClass;
+
+            // Fast Plotly Update (Only traces 1 and 2)
+            Plotly.restyle('plot', { x: [pathX], y: [pathY], z: [pathZ] }, [1]);
+            Plotly.restyle('plot', { x: [[currentX]], y: [[currentY]], z: [[currentZ]] }, [2]);
+        }
+
+        function getNeighbors(x, y) {
+            let stepSize = 0.5;
+            let neighbors = [
+                {nx: x+stepSize, ny: y}, {nx: x-stepSize, ny: y},
+                {nx: x, ny: y+stepSize}, {nx: x, ny: y-stepSize}
+            ];
+            return neighbors.filter(n => n.nx >= -10 && n.nx <= 10 && n.ny >= -10 && n.ny <= 10);
+        }
+
+        function startSearch() {
+            if(intervalId) clearInterval(intervalId);
+            
+            // Start near a Local Maxima (-8, -8) intentionally to show trapping
+            currentX = -8; currentY = -8; currentZ = f(currentX, currentY);
+            pathX = [currentX]; pathY = [currentY]; pathZ = [currentZ];
+            step = 0; restartCount = 0; temperature = 10.0;
+            
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+            
+            updateUI("Searching...", "val-highlight");
+            intervalId = setInterval(runStep, 80); // Runs every 80ms
+        }
+
+        function stopSearch() {
+            if(intervalId) clearInterval(intervalId);
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-stop').disabled = true;
+        }
+
+        function runStep() {
+            let algo = document.getElementById('algoSelect').value;
+            let neighbors = getNeighbors(currentX, currentY);
+            let nextMove = null;
+            let status = "Searching...";
+            let color = "val-highlight";
+
+            if (algo === 'simple') {
+                let bestZ = currentZ;
+                neighbors.forEach(n => {
+                    let nz = f(n.nx, n.ny);
+                    if (nz > bestZ) { bestZ = nz; nextMove = n; }
+                });
+                
+                if (!nextMove) {
+                    stopSearch();
+                    status = (currentZ > 9) ? "Global Maxima Reached!" : "Stuck at Local Maxima!";
+                    color = (currentZ > 9) ? "val-highlight" : "val-warn";
+                    updateUI(status, color);
+                    return;
+                }
+
+            } else if (algo === 'stochastic') {
+                let betterNeighbors = neighbors.filter(n => f(n.nx, n.ny) > currentZ);
+                if (betterNeighbors.length > 0) {
+                    nextMove = betterNeighbors[Math.floor(Math.random() * betterNeighbors.length)];
+                } else {
+                    stopSearch();
+                    status = "Stuck at Local Maxima!";
+                    color = "val-warn";
+                    updateUI(status, color);
+                    return;
+                }
+
+            } else if (algo === 'restart') {
+                let bestZ = currentZ;
+                neighbors.forEach(n => {
+                    let nz = f(n.nx, n.ny);
+                    if (nz > bestZ) { bestZ = nz; nextMove = n; }
+                });
+
+                if (!nextMove) {
+                    if (currentZ < 9.5) { 
+                        restartCount++;
+                        currentX = (Math.random() * 20) - 10;
+                        currentY = (Math.random() * 20) - 10;
+                        currentZ = f(currentX, currentY);
+                        pathX.push(null); pathY.push(null); pathZ.push(null); // Break the line in graph
+                        pathX.push(currentX); pathY.push(currentY); pathZ.push(currentZ);
+                        updateUI(`Restarting... (${restartCount})`, "val-warn");
+                        return; // Skip step increment for jump
+                    } else {
+                        stopSearch();
+                        updateUI("Global Maxima Found!", "val-highlight");
+                        return;
+                    }
+                }
+
+            } else if (algo === 'annealing') {
+                let randomN = neighbors[Math.floor(Math.random() * neighbors.length)];
+                let nz = f(randomN.nx, randomN.ny);
+                let deltaE = nz - currentZ; // Maximization problem
+
+                if (deltaE > 0) {
+                    nextMove = randomN;
+                } else {
+                    let prob = Math.exp(deltaE / temperature);
+                    if (Math.random() < prob) nextMove = randomN; 
+                }
+                
+                temperature *= 0.98; // Cooling rate
+                status = `Annealing (Temp: ${temperature.toFixed(2)})`;
+                
+                if (temperature < 0.05) {
+                    stopSearch();
+                    updateUI("System Cooled / Frozen", "val-highlight");
+                    return;
+                }
+                
+                if (!nextMove) {
+                    updateUI(status, color);
+                    return; // Didn't move this turn, but keep trying
+                }
+            }
+
+            if (nextMove) {
+                currentX = nextMove.nx; currentY = nextMove.ny; currentZ = f(currentX, currentY);
+                pathX.push(currentX); pathY.push(currentY); pathZ.push(currentZ);
+                step++;
+                updateUI(status, color);
+            }
+        }
+    </script>
+</body>
+</html>

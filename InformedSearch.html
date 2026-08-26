@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informed Search Visualizer (A* & Greedy)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; }
+        .canvas-container { position: relative; width: 100%; height: 100%; }
+        canvas { background-color: #ffffff; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); width: 100%; height: 100%; display: block; }
+        .log-container { overflow-y: auto; scroll-behavior: smooth; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        .tab-btn.active { border-bottom: 4px solid #4f46e5; color: #4f46e5; font-weight: bold; }
+        .tab-btn { color: #64748b; font-weight: 600; transition: all 0.2s; }
+        
+        /* 8-Puzzle Grid Styles */
+        .puzzle-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: #334155; padding: 6px; border-radius: 8px; width: fit-content; margin: 0 auto; }
+        .puzzle-tile { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; border-radius: 4px; background: #e2e8f0; color: #0f172a; transition: all 0.3s ease; }
+        .puzzle-tile.empty { background: #334155; color: transparent; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="h-screen flex flex-col p-2 md:p-3 lg:max-w-[1600px] mx-auto w-full overflow-hidden">
+
+    <div class="flex gap-6 border-b border-gray-300 px-4 pt-2 shrink-0 bg-white rounded-t-xl shadow-sm">
+        <button onclick="switchTab('ROMANIA')" id="tab-ROMANIA" class="tab-btn active pb-2 px-2 text-lg">🗺️ Romania Map</button>
+        <button onclick="switchTab('PUZZLE')" id="tab-PUZZLE" class="tab-btn pb-2 px-2 text-lg">🧩 8-Puzzle Game</button>
+    </div>
+
+    <header class="bg-white p-3 shadow-sm border-x border-b border-gray-200 flex flex-col xl:flex-row justify-between items-center gap-3 shrink-0 mb-3 rounded-b-xl z-50">
+        <div>
+            <h1 class="text-xl font-extrabold text-gray-800" id="main-title">Informed Search: The Power of Heuristics 🧠</h1>
+            <p class="text-xs text-gray-500 font-medium" id="sub-title">Observe how Greedy and A* Search utilize heuristics.</p>
+        </div>
+        
+        <div class="flex flex-wrap justify-center gap-1.5 bg-gray-100 p-1.5 rounded-lg">
+            <button id="btn-greedy" onclick="setAlgorithm('GREEDY')" class="px-4 py-1.5 text-sm font-bold bg-orange-500 text-white rounded-md shadow-sm transition-all">Greedy f(n) = h(n)</button>
+            <button id="btn-astar" onclick="setAlgorithm('ASTAR')" class="px-4 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all">A* Search f(n) = g(n) + h(n)</button>
+        </div>
+
+        <div class="flex gap-2">
+            <button id="btn-step" onclick="nextStep()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm transition-all text-sm flex items-center gap-1">
+                Next Step ⏭️
+            </button>
+            <button id="btn-play" onclick="togglePlay()" class="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg shadow-sm transition-all text-sm flex items-center gap-1">
+                Auto ▶️
+            </button>
+            <button onclick="resetSearch()" class="px-4 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg shadow-sm transition-all text-sm border border-red-200">
+                Reset 🔄
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 overflow-hidden relative">
+        
+        <div id="view-ROMANIA" class="contents">
+            <div class="lg:col-span-6 xl:col-span-7 flex flex-col gap-3 h-full overflow-hidden">
+                <div class="flex-1 relative rounded-xl min-h-[50%] flex flex-col canvas-container" id="map-container">
+                    <div class="absolute top-2 left-2 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 font-bold text-gray-700 text-xs">
+                        🌍 Romania Map (Graph with Edge Cost, g, h & f values)
+                    </div>
+                    <canvas id="mapCanvas"></canvas>
+                </div>
+
+                <div class="flex-1 relative rounded-xl min-h-[35%] flex flex-col canvas-container" id="tree-container">
+                    <div class="absolute top-2 left-2 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 font-bold text-gray-700 text-xs">
+                        🌳 Search Tree (f-values)
+                    </div>
+                    <canvas id="treeCanvas"></canvas>
+                </div>
+            </div>
+
+            <div class="lg:col-span-6 xl:col-span-5 flex flex-col gap-3 h-full overflow-hidden">
+                
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col shrink-0 max-h-[30%]">
+                    <div class="p-2 bg-indigo-50 border-b border-indigo-100 rounded-t-xl">
+                        <span class="font-bold text-indigo-900 text-sm">📏 Heuristic Table: Straight Line Distance (h) to Bucharest</span>
+                    </div>
+                    <div class="overflow-y-auto p-2 text-xs">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100"><th class="p-1 border-b">City</th><th class="p-1 border-b">h(n)</th><th class="p-1 border-b">City</th><th class="p-1 border-b">h(n)</th></tr>
+                            </thead>
+                            <tbody id="heuristic-table-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-xl shadow-sm border border-gray-700 flex flex-col shrink-0">
+                    <div class="p-2 border-b border-gray-700 flex justify-between items-center bg-gray-900 rounded-t-xl">
+                        <span class="font-bold text-gray-200 text-sm">Priority Queue (Frontier)</span>
+                        <span class="text-[10px] font-mono bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded" id="eq-display-romania">f(n) = h(n)</span>
+                    </div>
+                    <div class="p-2">
+                        <div id="frontier-display-romania" class="font-mono text-xs bg-black text-green-400 p-2 rounded max-h-[120px] overflow-y-auto flex flex-col gap-1"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
+                    <div class="p-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                        <span class="font-bold text-gray-700 text-sm">📝 Decision Log</span>
+                        <span id="status-badge-romania" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px]">Ready</span>
+                    </div>
+                    <div id="log-container-romania" class="log-container p-3 flex-1 text-xs text-gray-600 space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="view-PUZZLE" class="contents hidden">
+            <div class="lg:col-span-5 flex flex-col gap-3 h-full overflow-hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col items-center justify-center relative p-4">
+                    <div class="absolute top-2 left-2 z-10 bg-indigo-50 px-2 py-1 rounded shadow-sm border border-indigo-200 font-bold text-indigo-800 text-xs flex justify-between w-[calc(100%-1rem)]">
+                        <span>Current Board State</span>
+                        <span id="current-f-val" class="text-orange-600 font-bold">f(n) = ?</span>
+                    </div>
+                    
+                    <div class="absolute top-10 left-2 z-10">
+                        <select id="heuristic-select" onchange="changePuzzleHeuristic()" class="text-xs p-1 border border-gray-300 rounded bg-white text-gray-700 shadow-sm cursor-pointer hover:border-indigo-400 focus:outline-none">
+                            <option value="MANHATTAN">Global Heuristic (Manhattan Distance)</option>
+                            <option value="MISPLACED">Misplaced Tiles</option>
+                        </select>
+                    </div>
+                    
+                    <div class="puzzle-grid mb-4 mt-8" id="puzzle-board">
+                        </div>
+
+                    <div id="current-stats-puzzle" class="mb-6 text-xs font-mono bg-gray-100 px-4 py-2 rounded-lg border border-gray-200 text-gray-700 w-full max-w-sm flex justify-around">
+                        <span>g(n): 0</span>
+                        <span>h(n): 0</span>
+                        <span class="font-bold text-indigo-700">f(n): 0</span>
+                    </div>
+
+                    <div class="bg-gray-100 p-4 rounded-lg w-full max-w-sm text-center border border-gray-200">
+                        <h3 class="font-bold text-gray-700 mb-2">Goal State</h3>
+                        <div class="puzzle-grid scale-75 origin-top" id="goal-board"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-7 flex flex-col gap-3 h-full overflow-hidden">
+                <div class="bg-gray-800 rounded-xl shadow-sm border border-gray-700 flex flex-col shrink-0 h-[40%]">
+                    <div class="p-2 border-b border-gray-700 flex justify-between items-center bg-gray-900 rounded-t-xl">
+                        <span class="font-bold text-gray-200 text-sm">Priority Queue (Frontier)</span>
+                        <span class="text-[10px] font-mono bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded" id="eq-display-puzzle">f(n) = h(n)</span>
+                    </div>
+                    <div class="p-2 flex-1 overflow-hidden flex flex-col">
+                        <p class="text-[10px] text-gray-400 mb-1">The state with the lowest 'f' value is at the top.</p>
+                        <div id="frontier-display-puzzle" class="font-mono text-xs bg-black text-green-400 p-2 rounded flex-1 overflow-y-auto flex flex-col gap-1"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
+                    <div class="p-2 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                        <span class="font-bold text-gray-700 text-sm">📝 AI Decision Log</span>
+                        <span id="status-badge-puzzle" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px]">Ready</span>
+                    </div>
+                    <div id="log-container-puzzle" class="log-container p-3 flex-1 text-xs text-gray-600 space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ================= GLOBAL STATE =================
+        let currentTab = 'ROMANIA'; // ROMANIA or PUZZLE
+        let currentAlgorithm = 'GREEDY'; // GREEDY or ASTAR
+        let autoPlayInterval = null;
+        let searchStatus = 'ready'; 
+
+        // ================= ROMANIA DATA =================
+        const r_startNode = 'Arad';
+        const r_goalNode = 'Bucharest';
+        
+        // Revised coordinates to spread nodes far apart and prevent text/edge overlaps
+        const romaniaNodes = {
+            'Arad': { x: 5, y: 30 }, 
+            'Zerind': { x: 12, y: 10 }, 
+            'Oradea': { x: 26, y: 8 },
+            'Sibiu': { x: 38, y: 32 }, 
+            'Timisoara': { x: 5, y: 55 }, 
+            'Lugoj': { x: 18, y: 70 },
+            'Mehadia': { x: 22, y: 86 }, 
+            'Drobeta': { x: 32, y: 100 }, 
+            'Craiova': { x: 50, y: 95 },
+            'RimnicuVilcea': { x: 42, y: 55, label: 'R. Vilcea' }, 
+            'Fagaras': { x: 64, y: 35 },
+            'Pitesti': { x: 62, y: 70 }, 
+            'Bucharest': { x: 84, y: 80 }, 
+            'Giurgiu': { x: 78, y: 100 },
+            'Urziceni': { x: 96, y: 65 }
+        };
+
+        const romaniaEdges = [
+            { from: 'Arad', to: 'Zerind', cost: 75 }, { from: 'Arad', to: 'Sibiu', cost: 140 },
+            { from: 'Arad', to: 'Timisoara', cost: 118 }, { from: 'Zerind', to: 'Oradea', cost: 71 },
+            { from: 'Oradea', to: 'Sibiu', cost: 151 }, { from: 'Timisoara', to: 'Lugoj', cost: 111 },
+            { from: 'Lugoj', to: 'Mehadia', cost: 70 }, { from: 'Mehadia', to: 'Drobeta', cost: 75 },
+            { from: 'Drobeta', to: 'Craiova', cost: 120 }, { from: 'Craiova', to: 'RimnicuVilcea', cost: 146 },
+            { from: 'Craiova', to: 'Pitesti', cost: 138 }, { from: 'Sibiu', to: 'RimnicuVilcea', cost: 80 },
+            { from: 'Sibiu', to: 'Fagaras', cost: 99 }, { from: 'RimnicuVilcea', to: 'Pitesti', cost: 97 },
+            { from: 'Fagaras', to: 'Bucharest', cost: 211 }, { from: 'Pitesti', to: 'Bucharest', cost: 101 },
+            { from: 'Bucharest', to: 'Giurgiu', cost: 90 }, { from: 'Bucharest', to: 'Urziceni', cost: 85 }
+        ];
+
+        const romaniaH = {
+            'Arad': 366, 'Bucharest': 0, 'Craiova': 160, 'Drobeta': 242, 'Fagaras': 176,
+            'Giurgiu': 77, 'Lugoj': 244, 'Mehadia': 241, 'Oradea': 380, 'Pitesti': 100,
+            'RimnicuVilcea': 193, 'Sibiu': 253, 'Timisoara': 329, 'Urziceni': 80, 'Zerind': 374
+        };
+
+        const romaniaAdjList = {};
+        for (let n in romaniaNodes) romaniaAdjList[n] = [];
+        for (let e of romaniaEdges) {
+            romaniaAdjList[e.from].push({ node: e.to, cost: e.cost });
+            romaniaAdjList[e.to].push({ node: e.from, cost: e.cost });
+        }
+
+        let r_frontier = []; 
+        let r_visited = new Set(); 
+        let r_bestG = {}; 
+        let r_currentProcessingNode = null;
+        let r_finalPath = [];
+        let r_stepCount = 0;
+        let r_treeData = []; 
+        let r_treeNodeCounter = 0;
+
+        const mapCanvas = document.getElementById('mapCanvas');
+        const mapCtx = mapCanvas.getContext('2d');
+        const treeCanvas = document.getElementById('treeCanvas');
+        const treeCtx = treeCanvas.getContext('2d');
+
+        // ================= 8-PUZZLE DATA =================
+        const p_goalState = "123456780";
+        const p_startState = "023145786"; 
+        
+        let p_frontier = [];
+        let p_visited = new Set();
+        let p_bestG = {};
+        let p_currentProcessingNode = null;
+        let p_stepCount = 0;
+        let p_heuristicType = 'MANHATTAN';
+
+        // ================= INITIALIZATION =================
+        function init() {
+            populateHeuristicTable();
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
+            switchTab('ROMANIA');
+            
+            drawPuzzleBoard('goal-board', p_goalState);
+        }
+
+        function populateHeuristicTable() {
+            const tbody = document.getElementById('heuristic-table-body');
+            let html = '';
+            let keys = Object.keys(romaniaH).sort();
+            for(let i=0; i<keys.length; i+=2) {
+                let k1 = keys[i];
+                let k2 = keys[i+1];
+                html += `<tr class="border-b border-gray-100">
+                    <td class="p-1 font-semibold text-gray-700">${k1}</td><td class="p-1 text-orange-600 font-mono">${romaniaH[k1]}</td>
+                    ${k2 ? `<td class="p-1 font-semibold text-gray-700 border-l border-gray-100 pl-2">${k2}</td><td class="p-1 text-orange-600 font-mono">${romaniaH[k2]}</td>` : '<td colspan="2"></td>'}
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        }
+
+        function switchTab(tab) {
+            stopAutoPlay();
+            currentTab = tab;
+            
+            document.getElementById('tab-ROMANIA').classList.remove('active');
+            document.getElementById('tab-PUZZLE').classList.remove('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+
+            document.getElementById('view-ROMANIA').style.display = tab === 'ROMANIA' ? 'contents' : 'none';
+            document.getElementById('view-PUZZLE').style.display = tab === 'PUZZLE' ? 'contents' : 'none';
+
+            if(tab === 'ROMANIA') {
+                document.getElementById('main-title').innerText = "Informed Search: The Power of Heuristics 🧠";
+                document.getElementById('sub-title').innerText = "Finding the optimal route using Straight Line Distance (h) to Bucharest.";
+            } else {
+                document.getElementById('main-title').innerText = "8-Puzzle: A* Search in Action 🧩";
+                document.getElementById('sub-title').innerText = "Solving the sliding puzzle by calculating the chosen heuristic (h).";
+            }
+
+            setAlgorithm(currentAlgorithm); 
+            if(tab === 'ROMANIA') setTimeout(resizeCanvases, 50);
+        }
+
+        function setAlgorithm(algo) {
+            currentAlgorithm = algo;
+            
+            if (algo === 'GREEDY') {
+                document.getElementById('btn-greedy').className = "px-4 py-1.5 text-sm font-bold bg-orange-500 text-white rounded-md shadow-sm transition-all";
+                document.getElementById('btn-astar').className = "px-4 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all";
+                document.getElementById(`eq-display-${currentTab.toLowerCase()}`).innerText = "f(n) = h(n)";
+            } else {
+                document.getElementById('btn-astar').className = "px-4 py-1.5 text-sm font-bold bg-indigo-600 text-white rounded-md shadow-sm transition-all";
+                document.getElementById('btn-greedy').className = "px-4 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all";
+                document.getElementById(`eq-display-${currentTab.toLowerCase()}`).innerText = "f(n) = g(n) + h(n)";
+            }
+            
+            resetSearch();
+        }
+
+        function resetSearch() {
+            stopAutoPlay();
+            searchStatus = 'running';
+            
+            if(currentTab === 'ROMANIA') {
+                r_treeNodeCounter = 0;
+                let rootTreeId = 't_' + r_treeNodeCounter++;
+                let startH = romaniaH[r_startNode];
+                let startF = currentAlgorithm === 'GREEDY' ? startH : startH;
+
+                r_frontier = [{ id: r_startNode, g: 0, h: startH, f: startF, parent: null, depth: 0, treeId: rootTreeId }];
+                r_visited = new Set();
+                r_bestG = {}; r_bestG[r_startNode] = 0;
+                r_currentProcessingNode = null;
+                r_finalPath = [];
+                r_stepCount = 0;
+                r_treeData = [{ treeId: rootTreeId, id: r_startNode, parentTreeId: null, depth: 0, g: 0, h: startH, f: startF }];
+
+                document.getElementById('log-container-romania').innerHTML = '';
+                r_logMsg(`🚀 <b>Initialization:</b> Algorithm = ${currentAlgorithm === 'GREEDY' ? 'Greedy Best-First' : 'A* Search'}. Goal = ${r_goalNode}.`, 'text-indigo-600');
+
+                r_updateUI(); drawMap(); drawTree();
+            } else {
+                let startH = calculatePuzzleHeuristic(p_startState);
+                let startF = currentAlgorithm === 'GREEDY' ? startH : startH;
+                
+                p_frontier = [{ state: p_startState, g: 0, h: startH, f: startF, parent: null }];
+                p_visited = new Set();
+                p_bestG = {};
+                p_bestG[p_startState] = 0;
+                p_currentProcessingNode = null;
+                p_stepCount = 0;
+
+                document.getElementById('log-container-puzzle').innerHTML = '';
+                let hName = p_heuristicType === 'MANHATTAN' ? 'Global Heuristic (Manhattan)' : 'Misplaced Tiles';
+                p_logMsg(`🚀 <b>Puzzle Start:</b> Initial state loaded. Using ${hName}.`, 'text-indigo-600');
+                
+                drawPuzzleBoard('puzzle-board', p_startState);
+                updatePuzzleStats(0, startH, startF);
+                p_updateUI();
+            }
+        }
+
+        function nextStep() {
+            if (searchStatus !== 'running') return;
+            if (currentTab === 'ROMANIA') r_nextStep();
+            else p_nextStep();
+        }
+
+        // ================= ROMANIA LOGIC =================
+        function resizeCanvases() {
+            if(currentTab !== 'ROMANIA') return;
+            const mContainer = document.getElementById('map-container');
+            const tContainer = document.getElementById('tree-container');
+            
+            if(mContainer.clientWidth === 0) return; 
+
+            mapCanvas.style.width = mContainer.clientWidth + 'px';
+            mapCanvas.style.height = mContainer.clientHeight + 'px';
+            mapCanvas.width = mContainer.clientWidth * 2;
+            mapCanvas.height = mContainer.clientHeight * 2;
+            mapCtx.setTransform(2, 0, 0, 2, 0, 0);
+
+            treeCanvas.style.width = tContainer.clientWidth + 'px';
+            treeCanvas.style.height = tContainer.clientHeight + 'px';
+            treeCanvas.width = tContainer.clientWidth * 2;
+            treeCanvas.height = tContainer.clientHeight * 2;
+            treeCtx.setTransform(2, 0, 0, 2, 0, 0);
+
+            drawMap(); drawTree();
+        }
+
+        function r_getLabel(id) { return romaniaNodes[id].label || id; }
+
+        function r_nextStep() {
+            r_stepCount++;
+
+            if (r_frontier.length === 0) {
+                searchStatus = 'failed';
+                r_logMsg(`❌ Frontier is empty. Goal could not be found!`, 'text-red-600 font-bold');
+                r_updateUI(); drawMap(); drawTree(); stopAutoPlay(); return;
+            }
+
+            r_frontier.sort((a, b) => a.f - b.f);
+            let poppedObj = r_frontier.shift();
+
+            r_currentProcessingNode = poppedObj;
+            r_visited.add(poppedObj.id);
+
+            let msg = `⚡ <b>Step ${r_stepCount}:</b> Selected <b>${r_getLabel(poppedObj.id)}</b>. `;
+            msg += currentAlgorithm === 'GREEDY' ? `Lowest h = <b class="text-orange-600">${poppedObj.f}</b>.` : `Lowest f = g(${poppedObj.g}) + h(${poppedObj.h}) = <b class="text-indigo-600">${poppedObj.f}</b>.`;
+            r_logMsg(msg, 'text-gray-800 font-medium');
+
+            if (poppedObj.id === r_goalNode) {
+                searchStatus = 'success';
+                let curr = poppedObj;
+                while(curr) {
+                    r_finalPath.unshift(curr.id);
+                    if(curr.parentTreeId) {
+                        let p = r_treeData.find(t => t.treeId === curr.parentTreeId);
+                        curr = { id: p.id, parentTreeId: p.parentTreeId };
+                    } else curr = null;
+                }
+                r_logMsg(`🎉 <b>GOAL FOUND!</b> Reached ${r_goalNode}. Total Distance = <b>${poppedObj.g} km</b>.`, 'text-green-600 font-bold border border-green-300 bg-green-50 p-2 rounded mt-2');
+                
+                if (currentAlgorithm === 'GREEDY' && poppedObj.g > 418) {
+                    r_logMsg(`⚠️ Note: Greedy found a path, but it is <b>not optimal</b> (cost ${poppedObj.g}). It was misled by the low heuristic value of Fagaras!`, 'text-orange-600 italic mt-1');
+                } else if (currentAlgorithm === 'ASTAR') {
+                    r_logMsg(`✨ A* guarantee: This is the <b>shortest (optimal)</b> path!`, 'text-indigo-600 italic font-bold mt-1');
+                }
+
+                r_updateUI(); drawMap(); drawTree(); stopAutoPlay(); return;
+            }
+
+            let neighbors = romaniaAdjList[poppedObj.id];
+            let processList = [...neighbors].sort((a,b) => a.node.localeCompare(b.node)); 
+
+            let addedLog = [];
+            for (let edge of processList) {
+                let childId = edge.node;
+                let newG = poppedObj.g + edge.cost;
+                let childH = romaniaH[childId];
+                let newF = currentAlgorithm === 'GREEDY' ? childH : (newG + childH);
+                let shouldAdd = false;
+
+                if (currentAlgorithm === 'ASTAR') {
+                    if (r_bestG[childId] === undefined || newG < r_bestG[childId]) {
+                        r_bestG[childId] = newG;
+                        shouldAdd = true;
+                        r_frontier = r_frontier.filter(f => f.id !== childId);
+                    }
+                } else {
+                    if (!r_visited.has(childId) && !r_frontier.some(f => f.id === childId)) {
+                        r_bestG[childId] = newG;
+                        shouldAdd = true;
+                    }
+                }
+
+                if (shouldAdd) {
+                    let childTreeId = 't_' + r_treeNodeCounter++;
+                    r_frontier.push({
+                        id: childId, g: newG, h: childH, f: newF, parent: poppedObj.id, 
+                        depth: poppedObj.depth + 1, treeId: childTreeId, parentTreeId: poppedObj.treeId
+                    });
+                    r_treeData.push({
+                        treeId: childTreeId, id: childId, parentTreeId: poppedObj.treeId,
+                        depth: poppedObj.depth + 1, g: newG, h: childH, f: newF
+                    });
+                    
+                    let calcStr = currentAlgorithm === 'GREEDY' ? `f=${newF}` : `f=${newG}+${childH}=${newF}`;
+                    addedLog.push(`${r_getLabel(childId)} (${calcStr})`);
+                }
+            }
+
+            if (addedLog.length > 0) {
+                r_logMsg(`🔍 Calculating neighbors for <b>${r_getLabel(poppedObj.id)}</b>:<br> <span class="text-xs text-indigo-700 ml-4 border-l-2 border-indigo-200 pl-2 block mt-1">${addedLog.join('<br>')}</span>`, 'text-gray-600');
+            } else {
+                r_logMsg(`🛑 <b>${r_getLabel(poppedObj.id)}</b> has no new promising paths (Dead end).`, 'text-yellow-600');
+            }
+
+            r_updateUI(); drawMap(); drawTree();
+        }
+
+        function r_logMsg(text, classes) {
+            const div = document.createElement('div');
+            div.className = `border-l-2 border-gray-300 pl-2 py-0.5 ${classes}`;
+            div.innerHTML = text;
+            const container = document.getElementById('log-container-romania');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function r_updateUI() {
+            const display = document.getElementById('frontier-display-romania');
+            display.innerHTML = '';
+            
+            if (r_frontier.length === 0) {
+                display.innerHTML = `<span class="text-gray-500">[ Empty ]</span>`;
+            } else {
+                let showList = [...r_frontier].sort((a,b) => a.f - b.f);
+                showList.forEach((item, index) => {
+                    let div = document.createElement('div');
+                    let isTarget = (index === 0);
+                    div.className = `px-2 py-1.5 rounded text-xs flex justify-between items-center border ${isTarget ? 'border-orange-400 bg-orange-900 text-orange-100 shadow-md' : 'border-gray-600 bg-gray-800 text-gray-200'}`;
+                    
+                    let mathStr = currentAlgorithm === 'GREEDY' 
+                        ? `<span class="text-orange-400 font-bold">f=${item.f}</span>` 
+                        : `<span class="text-blue-300">g=${item.g}</span> + <span class="text-orange-400">h=${item.h}</span> = <span class="text-white font-bold">f=${item.f}</span>`;
+
+                    div.innerHTML = `<span class="font-bold w-20 truncate">${r_getLabel(item.id)}</span> <span class="text-[10px] bg-black/30 px-1.5 py-0.5 rounded">${mathStr}</span>`;
+                    display.appendChild(div);
+                });
+            }
+            updateStatusBadge('romania');
+        }
+
+        function drawMap() {
+            if(mapCanvas.width === 0) return;
+            const w = mapCanvas.width / 2; const h = mapCanvas.height / 2;
+            mapCtx.clearRect(0, 0, w, h);
+
+            // Added large padding so nodes and text don't clip at edges
+            const getX = (p) => (p / 100) * (w - 100) + 50;
+            const getY = (p) => (p / 100) * (h - 120) + 60;
+
+            // 1. Draw Edges
+            mapCtx.lineWidth = 2;
+            for (let edge of romaniaEdges) {
+                const sPos = romaniaNodes[edge.from]; const ePos = romaniaNodes[edge.to];
+                let isPath = searchStatus === 'success' && r_finalPath.includes(edge.from) && r_finalPath.includes(edge.to) && Math.abs(r_finalPath.indexOf(edge.from) - r_finalPath.indexOf(edge.to)) === 1;
+
+                mapCtx.beginPath();
+                mapCtx.moveTo(getX(sPos.x), getY(sPos.y)); mapCtx.lineTo(getX(ePos.x), getY(ePos.y));
+                mapCtx.strokeStyle = isPath ? '#16a34a' : '#cbd5e1';
+                mapCtx.lineWidth = isPath ? 4 : 2;
+                mapCtx.stroke();
+
+                // Draw edge cost badge
+                const mx = (getX(sPos.x) + getX(ePos.x))/2; 
+                const my = (getY(sPos.y) + getY(ePos.y))/2;
+                
+                mapCtx.fillStyle = isPath ? '#16a34a' : '#ffffff';
+                mapCtx.strokeStyle = isPath ? '#16a34a' : '#94a3b8';
+                mapCtx.lineWidth = 1;
+                
+                mapCtx.beginPath(); 
+                if (mapCtx.roundRect) mapCtx.roundRect(mx - 10, my - 6, 20, 12, 3);
+                else mapCtx.rect(mx - 10, my - 6, 20, 12);
+                mapCtx.fill(); mapCtx.stroke();
+                
+                mapCtx.font = 'bold 8px Arial'; 
+                mapCtx.fillStyle = isPath ? '#ffffff' : '#334155'; 
+                mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+                mapCtx.fillText(edge.cost, mx, my);
+            }
+
+            // 2. Draw Nodes with h(n) above and g(n)/f(n) below!
+            for (let id in romaniaNodes) {
+                const x = getX(romaniaNodes[id].x); const y = getY(romaniaNodes[id].y);
+                let fill = '#f8fafc', stroke = '#94a3b8';
+
+                if (searchStatus === 'success' && r_finalPath.includes(id)) { fill = '#22c55e'; stroke = '#15803d'; }
+                else if (r_currentProcessingNode && r_currentProcessingNode.id === id) { fill = '#eab308'; stroke = '#854d0e'; }
+                else if (r_frontier.some(f => f.id === id)) { fill = '#3b82f6'; stroke = '#1d4ed8'; }
+                else if (r_visited.has(id)) { fill = '#94a3b8'; stroke = '#475569'; }
+
+                mapCtx.beginPath(); mapCtx.arc(x, y, 11, 0, 2*Math.PI);
+                mapCtx.fillStyle = fill; mapCtx.fill();
+                mapCtx.lineWidth = 2; mapCtx.strokeStyle = stroke; mapCtx.stroke();
+
+                if(id === r_startNode || id === r_goalNode) {
+                    mapCtx.beginPath(); mapCtx.arc(x,y, 15, 0, 2*Math.PI); mapCtx.strokeStyle = id===r_startNode?'#22c55e':'#ef4444'; mapCtx.setLineDash([4,2]); mapCtx.stroke(); mapCtx.setLineDash([]);
+                }
+
+                // City Name
+                mapCtx.font = 'bold 10px Arial'; mapCtx.fillStyle = '#0f172a'; mapCtx.textAlign = 'center';
+                mapCtx.fillText(r_getLabel(id), x, y + 22);
+
+                // Top Label: h(n)
+                mapCtx.font = 'bold 9px monospace'; mapCtx.fillStyle = '#ea580c'; // Orange
+                mapCtx.fillText(`h=${romaniaH[id]}`, x, y - 16);
+
+                // Bottom Label: g(n) and f(n) if discovered
+                if (r_bestG[id] !== undefined) {
+                    mapCtx.font = 'bold 9px monospace';
+                    mapCtx.fillStyle = '#2563eb'; // Blue
+                    let gVal = r_bestG[id];
+                    if (currentAlgorithm === 'ASTAR') {
+                        let fVal = gVal + romaniaH[id];
+                        mapCtx.fillText(`g=${gVal}|f=${fVal}`, x, y + 33);
+                    } else {
+                        mapCtx.fillText(`g=${gVal}`, x, y + 33);
+                    }
+                }
+            }
+        }
+
+        function drawTree() {
+            if(treeCanvas.width === 0 || r_treeData.length === 0) return;
+            const w = treeCanvas.width / 2; const h = treeCanvas.height / 2;
+            treeCtx.clearRect(0, 0, w, h);
+
+            let maxDepth = Math.max(...r_treeData.map(t => t.depth));
+            let levelHeight = Math.min(60, (h - 40) / (maxDepth || 1));
+            if(levelHeight < 40) levelHeight = 40;
+
+            let depthGroups = [];
+            r_treeData.forEach(t => {
+                if(!depthGroups[t.depth]) depthGroups[t.depth] = [];
+                depthGroups[t.depth].push(t);
+            });
+
+            depthGroups.forEach((group, d) => {
+                let spacing = w / (group.length + 1);
+                group.forEach((node, i) => {
+                    node.x = spacing * (i + 1); node.y = 25 + (d * levelHeight);
+                });
+            });
+
+            treeCtx.lineWidth = 1.5;
+            r_treeData.forEach(node => {
+                if (node.parentTreeId) {
+                    let parent = r_treeData.find(t => t.treeId === node.parentTreeId);
+                    if(parent) {
+                        let isFinal = searchStatus === 'success' && r_finalPath.includes(node.id) && r_finalPath.includes(parent.id);
+                        treeCtx.beginPath(); treeCtx.moveTo(parent.x, parent.y); treeCtx.lineTo(node.x, node.y);
+                        treeCtx.strokeStyle = isFinal ? '#16a34a' : '#cbd5e1';
+                        treeCtx.lineWidth = isFinal ? 3 : 1.5; treeCtx.stroke();
+                    }
+                }
+            });
+
+            r_treeData.forEach(node => {
+                let isFrontier = r_frontier.some(f => f.treeId === node.treeId);
+                let isCurrent = r_currentProcessingNode && r_currentProcessingNode.treeId === node.treeId;
+                let isVisited = !isFrontier && !isCurrent && r_visited.has(node.id);
+                let isPath = searchStatus === 'success' && r_finalPath.includes(node.id);
+
+                let fill = '#f8fafc', stroke = '#cbd5e1';
+                if(isPath) { fill = '#22c55e'; stroke = '#15803d'; }
+                else if(isCurrent) { fill = '#eab308'; stroke = '#854d0e'; }
+                else if(isFrontier) { fill = '#3b82f6'; stroke = '#1d4ed8'; }
+                else if(isVisited) { fill = '#94a3b8'; stroke = '#475569'; }
+
+                treeCtx.beginPath(); 
+                if(treeCtx.roundRect) treeCtx.roundRect(node.x - 18, node.y - 12, 36, 24, 4);
+                else treeCtx.rect(node.x - 18, node.y - 12, 36, 24);
+                treeCtx.fillStyle = fill; treeCtx.fill();
+                treeCtx.lineWidth = 1.5; treeCtx.strokeStyle = stroke; treeCtx.stroke();
+
+                treeCtx.font = 'bold 10px Arial'; treeCtx.fillStyle = fill==='#f8fafc'?'#334155':'#ffffff';
+                treeCtx.textAlign = 'center'; treeCtx.textBaseline = 'middle';
+                treeCtx.fillText(node.id.substring(0,3), node.x, node.y - 3);
+
+                treeCtx.font = 'bold 9px monospace'; treeCtx.fillStyle = fill==='#f8fafc'?'#ea580c':'#ffedd5';
+                treeCtx.fillText(`f=${node.f}`, node.x, node.y + 7);
+            });
+        }
+
+
+        // ================= 8-PUZZLE LOGIC =================
+        function changePuzzleHeuristic() {
+            p_heuristicType = document.getElementById('heuristic-select').value;
+            resetSearch();
+        }
+
+        function calculatePuzzleHeuristic(stateStr) {
+            let h = 0;
+            if (p_heuristicType === 'MANHATTAN') {
+                for(let i=0; i<9; i++) {
+                    let val = parseInt(stateStr[i]);
+                    if (val !== 0) {
+                        let targetIdx = p_goalState.indexOf(val.toString());
+                        let currR = Math.floor(i / 3), currC = i % 3;
+                        let targR = Math.floor(targetIdx / 3), targC = targetIdx % 3;
+                        h += Math.abs(currR - targR) + Math.abs(currC - targC);
+                    }
+                }
+            } else if (p_heuristicType === 'MISPLACED') {
+                for(let i=0; i<9; i++) {
+                    let val = stateStr[i];
+                    if (val !== '0' && val !== p_goalState[i]) {
+                        h += 1;
+                    }
+                }
+            }
+            return h;
+        }
+
+        function getPuzzleNeighbors(stateStr) {
+            let zeroIdx = stateStr.indexOf('0');
+            let r = Math.floor(zeroIdx / 3);
+            let c = zeroIdx % 3;
+            let neighbors = [];
+            
+            const swap = (idx1, idx2) => {
+                let arr = stateStr.split('');
+                [arr[idx1], arr[idx2]] = [arr[idx2], arr[idx1]];
+                return arr.join('');
+            };
+
+            if (r > 0) neighbors.push(swap(zeroIdx, zeroIdx - 3)); // Up
+            if (r < 2) neighbors.push(swap(zeroIdx, zeroIdx + 3)); // Down
+            if (c > 0) neighbors.push(swap(zeroIdx, zeroIdx - 1)); // Left
+            if (c < 2) neighbors.push(swap(zeroIdx, zeroIdx + 1)); // Right
+            return neighbors;
+        }
+
+        function drawPuzzleBoard(containerId, stateStr, highlightTileIdx = -1) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            for(let i=0; i<9; i++) {
+                let div = document.createElement('div');
+                if (stateStr[i] === '0') {
+                    div.className = 'puzzle-tile empty';
+                    div.innerText = '';
+                } else {
+                    div.className = 'puzzle-tile';
+                    div.innerText = stateStr[i];
+                    if(i === highlightTileIdx) div.style.backgroundColor = '#fef08a';
+                }
+                container.appendChild(div);
+            }
+        }
+
+        function updatePuzzleStats(g, h, f) {
+            document.getElementById('current-f-val').innerHTML = `f(n) = ${f}`;
+            document.getElementById('current-stats-puzzle').innerHTML = `
+                <span>g(n): ${g}</span>
+                <span>h(n): ${h}</span>
+                <span class="font-bold text-indigo-700">f(n): ${f}</span>
+            `;
+        }
+
+        function p_logMsg(text, classes) {
+            const div = document.createElement('div');
+            div.className = `border-l-2 border-gray-300 pl-2 py-0.5 ${classes}`;
+            div.innerHTML = text;
+            const container = document.getElementById('log-container-puzzle');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function p_nextStep() {
+            p_stepCount++;
+
+            if (p_frontier.length === 0) {
+                searchStatus = 'failed';
+                p_logMsg(`❌ Path not found. The puzzle might be unsolvable from this state!`, 'text-red-600 font-bold');
+                p_updateUI(); stopAutoPlay(); return;
+            }
+
+            p_frontier.sort((a, b) => a.f - b.f);
+            let poppedObj = p_frontier.shift();
+
+            p_currentProcessingNode = poppedObj;
+            p_visited.add(poppedObj.state);
+
+            drawPuzzleBoard('puzzle-board', poppedObj.state);
+            updatePuzzleStats(poppedObj.g, poppedObj.h, poppedObj.f);
+
+            let msg = `⚡ <b>Step ${p_stepCount}:</b> Expanding new board state. `;
+            if (currentAlgorithm === 'GREEDY') {
+                msg += `Chosen due to the lowest Heuristic h = <b class="text-orange-600">${poppedObj.f}</b>.`;
+            } else {
+                msg += `Lowest f = g(${poppedObj.g}) + h(${poppedObj.h}) = <b class="text-indigo-600">${poppedObj.f}</b>.`;
+            }
+            p_logMsg(msg, 'text-gray-800 font-medium');
+
+            if (poppedObj.state === p_goalState) {
+                searchStatus = 'success';
+                drawPuzzleBoard('puzzle-board', poppedObj.state);
+                document.getElementById('puzzle-board').style.border = "4px solid #22c55e";
+                p_logMsg(`🎉 <b>PUZZLE SOLVED!</b> Goal reached. Total Steps (g) = <b>${poppedObj.g}</b>.`, 'text-green-600 font-bold border border-green-300 bg-green-50 p-2 rounded mt-2');
+                p_updateUI(); stopAutoPlay(); return;
+            }
+
+            let neighbors = getPuzzleNeighbors(poppedObj.state);
+            let addedCount = 0;
+
+            for (let childState of neighbors) {
+                let newG = poppedObj.g + 1; 
+                let childH = calculatePuzzleHeuristic(childState);
+                let newF = currentAlgorithm === 'GREEDY' ? childH : (newG + childH);
+                let shouldAdd = false;
+
+                if (currentAlgorithm === 'ASTAR') {
+                    if (p_bestG[childState] === undefined || newG < p_bestG[childState]) {
+                        p_bestG[childState] = newG;
+                        shouldAdd = true;
+                        p_frontier = p_frontier.filter(f => f.state !== childState);
+                    }
+                } else {
+                    if (!p_visited.has(childState) && !p_frontier.some(f => f.state === childState)) {
+                        shouldAdd = true;
+                    }
+                }
+
+                if (shouldAdd) {
+                    p_frontier.push({ state: childState, g: newG, h: childH, f: newF, parent: poppedObj.state });
+                    addedCount++;
+                }
+            }
+
+            p_logMsg(`🔍 <b>${addedCount}</b> new possible moves (states) added to the Queue.`, 'text-gray-600 text-[10px]');
+            p_updateUI();
+        }
+
+        function formatBoardText(s) {
+            return `[${s.substr(0,3)}|${s.substr(3,3)}|${s.substr(6,3)}]`;
+        }
+
+        function p_updateUI() {
+            const display = document.getElementById('frontier-display-puzzle');
+            display.innerHTML = '';
+            
+            if (p_frontier.length === 0) {
+                display.innerHTML = `<span class="text-gray-500">Empty</span>`;
+            } else {
+                let showList = [...p_frontier].sort((a,b) => a.f - b.f);
+                showList.slice(0, 10).forEach((item, index) => {
+                    let div = document.createElement('div');
+                    let isTarget = (index === 0);
+                    div.className = `px-2 py-1 rounded text-[11px] flex justify-between items-center border ${isTarget ? 'border-orange-400 bg-orange-900 text-orange-100' : 'border-gray-600 bg-gray-800 text-gray-300'}`;
+                    
+                    let mathStr = currentAlgorithm === 'GREEDY' 
+                        ? `<span class="text-orange-400 font-bold">h=${item.h}</span>` 
+                        : `<span class="text-blue-300">g=${item.g}</span> + <span class="text-orange-400">h=${item.h}</span> = <span class="text-white font-bold">f=${item.f}</span>`;
+
+                    div.innerHTML = `<span>${formatBoardText(item.state)}</span> <span>${mathStr}</span>`;
+                    display.appendChild(div);
+                });
+                if(showList.length > 10) {
+                    let div = document.createElement('div');
+                    div.className = "text-center text-gray-500 text-[10px] mt-1";
+                    div.innerText = `+ ${showList.length - 10} more states...`;
+                    display.appendChild(div);
+                }
+            }
+            updateStatusBadge('puzzle');
+        }
+
+        // ================= COMMON HELPERS =================
+        function updateStatusBadge(view) {
+            const badge = document.getElementById(`status-badge-${view}`);
+            const btnStep = document.getElementById('btn-step');
+            if (searchStatus === 'success') {
+                badge.className = "px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[10px]"; badge.innerText = "Goal Reached!";
+                btnStep.disabled = true; btnStep.classList.add('opacity-50', 'cursor-not-allowed');
+            } else if (searchStatus === 'failed') {
+                badge.className = "px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px]"; badge.innerText = "Failed";
+                btnStep.disabled = true; btnStep.classList.add('opacity-50');
+            } else {
+                badge.className = "px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px]"; badge.innerText = "Running";
+                btnStep.disabled = false; btnStep.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('btn-play');
+            if (autoPlayInterval) {
+                stopAutoPlay();
+            } else {
+                if(searchStatus !== 'running') resetSearch();
+                btn.innerHTML = "Pause ⏸️"; btn.classList.replace('bg-green-500', 'bg-yellow-500');
+                autoPlayInterval = setInterval(nextStep, currentTab === 'ROMANIA' ? 1200 : 800); 
+            }
+        }
+
+        function stopAutoPlay() {
+            if(autoPlayInterval) clearInterval(autoPlayInterval); 
+            autoPlayInterval = null;
+            const btn = document.getElementById('btn-play');
+            btn.innerHTML = "Auto ▶️"; btn.classList.replace('bg-yellow-500', 'bg-green-500');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

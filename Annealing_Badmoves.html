@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulated Annealing: Probability Visualizer</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #38bdf8; margin-bottom: 5px; text-align: center; }
+        .subtitle { color: #94a3b8; margin-bottom: 25px; text-align: center; font-size: 1.1em; }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1100px;
+            flex-wrap: wrap;
+        }
+
+        .panel {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .controls label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            color: #cbd5e1;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 15px;
+            accent-color: #38bdf8;
+        }
+
+        .stat-box {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 15px;
+            border: 1px solid #334155;
+        }
+
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #4ade80;
+            margin-top: 10px;
+        }
+
+        .formula-box {
+            background: #334155;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-family: 'Courier New', Courier, monospace;
+            margin-bottom: 20px;
+            color: #fca311;
+        }
+
+        #plot {
+            width: 100%;
+            height: 450px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Simulated Annealing: The Mathematics of "Bad Moves"</h1>
+    <div class="subtitle">See how Temperature (T) and Energy Loss (Delta E) control the probability of accepting a worse state.</div>
+
+    <div class="container">
+        
+        <!-- LEFT PANEL: Controls & Live Calculation -->
+        <div class="panel">
+            <h3>Interactive Calculator</h3>
+            
+            <div class="formula-box">
+                P = e^( Delta E / T )
+            </div>
+
+            <div class="controls">
+                <label>Energy Loss (Delta E) : <span id="valDeltaE" style="color: #f87171;">-5.0</span></label>
+                <input type="range" id="sliderDeltaE" min="-20" max="0" step="0.5" value="-5">
+                <p style="font-size: 0.8em; color: #94a3b8; margin-top: -10px;">How much worse is the new state? (0 = equal, -20 = terrible move)</p>
+
+                <label>Current Temperature (T) : <span id="valTemp" style="color: #facc15;">10.0</span></label>
+                <input type="range" id="sliderTemp" min="0.1" max="100" step="0.5" value="10">
+                <p style="font-size: 0.8em; color: #94a3b8; margin-top: -10px;">How 'energetic' or random is the system right now?</p>
+            </div>
+
+            <div class="stat-box">
+                <div style="color: #cbd5e1; font-weight: bold;">Acceptance Probability (P)</div>
+                <div class="stat-value" id="valProb">60.65%</div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Live Graph -->
+        <div class="panel" style="flex: 2;">
+            <h3 style="margin-top:0;">Probability Curve vs Temperature</h3>
+            <div id="plot"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const sliderDeltaE = document.getElementById('sliderDeltaE');
+        const sliderTemp = document.getElementById('sliderTemp');
+        const valDeltaE = document.getElementById('valDeltaE');
+        const valTemp = document.getElementById('valTemp');
+        const valProb = document.getElementById('valProb');
+
+        function calculateProbability(deltaE, temp) {
+            if (deltaE >= 0) return 1.0; // Always accept good moves
+            return Math.exp(deltaE / temp);
+        }
+
+        function updateUI() {
+            let dE = parseFloat(sliderDeltaE.value);
+            let t = parseFloat(sliderTemp.value);
+
+            // Update Labels
+            valDeltaE.innerText = dE.toFixed(1);
+            valTemp.innerText = t.toFixed(1);
+
+            // Calculate current probability
+            let prob = calculateProbability(dE, t);
+            valProb.innerText = (prob * 100).toFixed(2) + "%";
+
+            // Update Graph Color based on chance
+            if (prob > 0.7) valProb.style.color = "#4ade80"; // Green for high chance
+            else if (prob > 0.3) valProb.style.color = "#facc15"; // Yellow
+            else valProb.style.color = "#f87171"; // Red for low chance
+
+            updateGraph(dE, t, prob);
+        }
+
+        function updateGraph(currentDeltaE, currentTemp, currentProb) {
+            // Generate X (Temperatures) and Y (Probabilities) for the curve
+            let xValues = [];
+            let yValues = [];
+            
+            for(let temp = 0.1; temp <= 100; temp += 1) {
+                xValues.push(temp);
+                yValues.push(calculateProbability(currentDeltaE, temp));
+            }
+
+            let curveTrace = {
+                x: xValues,
+                y: yValues,
+                mode: 'lines',
+                line: { color: '#38bdf8', width: 4 },
+                name: `Curve for Delta E = ${currentDeltaE}`
+            };
+
+            // Plot a dot on the current temperature
+            let currentPointTrace = {
+                x: [currentTemp],
+                y: [currentProb],
+                mode: 'markers+text',
+                marker: { size: 12, color: '#fca311', line: {color: 'white', width: 2} },
+                text: [`${(currentProb*100).toFixed(1)}%`],
+                textposition: 'top center',
+                textfont: { color: 'white', size: 14 },
+                name: 'Current State'
+            };
+
+            let layout = {
+                margin: { t: 10, b: 40, l: 50, r: 20 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                xaxis: { title: 'Temperature (T)', color: '#94a3b8', range: [0, 100] },
+                yaxis: { title: 'Probability (P)', color: '#94a3b8', range: [-0.05, 1.05] },
+                showlegend: false
+            };
+
+            Plotly.react('plot', [curveTrace, currentPointTrace], layout);
+        }
+
+        // Event Listeners
+        sliderDeltaE.addEventListener('input', updateUI);
+        sliderTemp.addEventListener('input', updateUI);
+
+        // Initial Draw
+        updateUI();
+    </script>
+</body>
+</html>

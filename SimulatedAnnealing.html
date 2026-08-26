@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Simulated Annealing Real-time Portal</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #38bdf8; margin-bottom: 10px; text-align: center; }
+        
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .left-panel {
+            flex: 1;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .right-panel {
+            flex: 2;
+            min-width: 600px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border-left: 4px solid #38bdf8;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label { font-size: 0.85em; font-weight: bold; color: #cbd5e1; margin-bottom: 3px; }
+
+        input[type="number"], input[type="range"] {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: white;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            grid-column: span 2;
+            padding: 10px;
+            background-color: #38bdf8;
+            color: #0f172a;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            transition: background 0.3s;
+            margin-top: 5px;
+        }
+
+        button:hover { background-color: #0ea5e9; }
+
+        #plot {
+            width: 100%;
+            height: 550px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .math-box {
+            font-size: 0.9em;
+            line-height: 1.5;
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            margin-top: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.95em;
+        }
+
+        .val-red { color: #f87171; font-weight: bold; }
+        .val-green { color: #4ade80; font-weight: bold; }
+        .val-blue { color: #60a5fa; font-weight: bold; }
+        .val-yellow { color: #facc15; font-weight: bold; }
+
+        .decision-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85em;
+            text-align: center;
+        }
+        .badge-accept-good { background: #166534; color: #4ade80; }
+        .badge-accept-bad { background: #854d0e; color: #facc15; }
+        .badge-reject { background: #991b1b; color: #f87171; }
+    </style>
+</head>
+<body>
+
+    <h1>3D Simulated Annealing: Real-time Equations & Optimization</h1>
+
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="card">
+                <h3>Parameters</h3>
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Start X (-10 to 10)</label>
+                        <input type="number" id="startX" value="-8" min="-10" max="10" step="0.5">
+                    </div>
+                    <div class="control-group">
+                        <label>Start Y (-10 to 10)</label>
+                        <input type="number" id="startY" value="-8" min="-10" max="10" step="0.5">
+                    </div>
+                    <div class="control-group">
+                        <label>Initial Temp ($T_0$): <span id="tempValLabel">10</span></label>
+                        <input type="range" id="temp" min="1" max="50" value="10" oninput="document.getElementById('tempValLabel').innerText = this.value">
+                    </div>
+                    <div class="control-group">
+                        <label>Cooling Rate ($\alpha$): <span id="coolingValLabel">0.98</span></label>
+                        <input type="range" id="cooling" min="0.80" max="0.999" step="0.001" value="0.98" oninput="document.getElementById('coolingValLabel').innerText = this.value">
+                    </div>
+                    <button onclick="startOptimization()">Start Optimization</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Real-Time Objective Tracker</h3>
+                
+                <div class="stat-row">
+                    <span>Current Pos $(x, y)$:</span>
+                    <span class="val-blue">(<span id="currX">-8.00</span>, <span id="currY">-8.00</span>)</span>
+                </div>
+                <div class="stat-row">
+                    <span>Objective Height $f(x,y)$:</span>
+                    <span class="val-green" id="currZ">0.00</span>
+                </div>
+                <div class="stat-row">
+                    <span>Current Temp ($T$):</span>
+                    <span class="val-red" id="currT">0.00</span>
+                </div>
+                <div class="stat-row">
+                    <span>Energy Diff ($\Delta E$):</span>
+                    <span class="val-yellow" id="currDeltaE">0.00</span>
+                </div>
+                <div class="stat-row">
+                    <span>Probability $P = e^{\Delta E / T}$:</span>
+                    <span class="val-blue" id="currProb">1.0000</span>
+                </div>
+                <div class="stat-row">
+                    <span>Last Action:</span>
+                    <span id="actionBadge" class="decision-badge badge-accept-good">Ready</span>
+                </div>
+
+                <div class="math-box">
+                    <b>Objective Equation:</b><br>
+                    $$f(x,y) = \sum_{i=1}^{4} A_i e^{-\frac{(x-x_i)^2 + (y-y_i)^2}{\sigma_i^2}}$$
+                    <b>Acceptance Rule:</b><br>
+                    $$\text{If } \Delta E > 0 \implies \text{Accept}$$
+                    $$\text{Else Accept with } P = e^{\frac{\Delta E}{T}}$$
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div id="plot"></div>
+        </div>
+    </div>
+
+<script>
+    // 1. Objective Function Definition
+    function f(x, y) {
+        let peak1 = 10 * Math.exp(-((x - 5)**2 + (y - 5)**2) / 10);   // Global Max (5, 5)
+        let peak2 = 6 * Math.exp(-((x + 5)**2 + (y + 5)**2) / 8);     // Local Max (-5, -5)
+        let peak3 = 7 * Math.exp(-((x + 5)**2 + (y - 5)**2) / 8);     // Local Max (-5, 5)
+        let peak4 = 4 * Math.exp(-((x - 5)**2 + (y + 5)**2) / 8);     // Local Max (5, -5)
+        return peak1 + peak2 + peak3 + peak4;
+    }
+
+    // 2. Generate Grid for 3D Surface
+    let xData = [], yData = [], zData = [];
+    for (let i = -10; i <= 10; i += 0.4) {
+        xData.push(i);
+        yData.push(i);
+    }
+    for (let j = 0; j < yData.length; j++) {
+        let zRow = [];
+        for (let i = 0; i < xData.length; i++) {
+            zRow.push(f(xData[i], yData[j]));
+        }
+        zData.push(zRow);
+    }
+
+    // Trace 0: The Mountain Surface (Rendered ONLY ONCE)
+    let surfaceTrace = {
+        z: zData, x: xData, y: yData,
+        type: 'surface',
+        colorscale: 'Viridis',
+        opacity: 0.85,
+        showscale: false
+    };
+
+    // Trace 1: The Trail (Red Line)
+    let pathTrace = {
+        x: [], y: [], z: [],
+        mode: 'lines',
+        type: 'scatter3d',
+        line: { color: '#ef4444', width: 4 },
+        name: 'Agent Path'
+    };
+
+    // Trace 2: The Current Position (Large Yellow Dot)
+    let headTrace = {
+        x: [], y: [], z: [],
+        mode: 'markers',
+        type: 'scatter3d',
+        marker: { size: 7, color: '#facc15', line: {color: '#000', width: 1} }, 
+        name: 'Current State'
+    };
+
+    let layout = {
+        margin: { l: 0, r: 0, b: 0, t: 0 },
+        scene: {
+            xaxis: { title: 'X Axis', range: [-10, 10] },
+            yaxis: { title: 'Y Axis', range: [-10, 10] },
+            zaxis: { title: 'Height f(x,y)', range: [0, 12] },
+            camera: { eye: {x: 1.4, y: -1.4, z: 1.2} }
+        },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        showlegend: false
+    };
+
+    // Initialize Plot ONLY ONCE
+    Plotly.newPlot('plot', [surfaceTrace, pathTrace, headTrace], layout);
+
+    // 3. Optimization Logic with Live Real-time Updating
+    let pathX = [], pathY = [], pathZ = [];
+    let currentX, currentY, currentZ;
+    let temperature, coolingRate;
+    let intervalId = null;
+
+    function startOptimization() {
+        if(intervalId) clearInterval(intervalId);
+
+        currentX = parseFloat(document.getElementById('startX').value);
+        currentY = parseFloat(document.getElementById('startY').value);
+
+        if(currentX < -10) currentX = -10; if(currentX > 10) currentX = 10;
+        if(currentY < -10) currentY = -10; if(currentY > 10) currentY = 10;
+
+        currentZ = f(currentX, currentY);
+        
+        temperature = parseFloat(document.getElementById('temp').value);
+        coolingRate = parseFloat(document.getElementById('cooling').value);
+
+        pathX = [currentX];
+        pathY = [currentY];
+        pathZ = [currentZ];
+
+        // Reset the path and head in the Plotly graph dynamically
+        Plotly.restyle('plot', { x: [pathX], y: [pathY], z: [pathZ] }, [1]); // Update Trace 1
+        Plotly.restyle('plot', { x: [[currentX]], y: [[currentY]], z: [[currentZ]] }, [2]); // Update Trace 2
+
+        // Update UI initial state
+        updateUI(currentX, currentY, currentZ, temperature, 0, 1, "Start", "badge-accept-good");
+
+        // Run step every 60ms
+        intervalId = setInterval(stepAnnealing, 60);
+    }
+
+    function stepAnnealing() {
+        if (temperature < 0.05) {
+            clearInterval(intervalId);
+            updateBadge("Cooled Down (Done)", "badge-accept-good");
+            return;
+        }
+
+        // Generate candidate move
+        let stepX = (Math.random() - 0.5) * 2.5;
+        let stepY = (Math.random() - 0.5) * 2.5;
+
+        let nextX = currentX + stepX;
+        let nextY = currentY + stepY;
+
+        if (nextX < -10) nextX = -10; if (nextX > 10) nextX = 10;
+        if (nextY < -10) nextY = -10; if (nextY > 10) nextY = 10;
+
+        let nextZ = f(nextX, nextY);
+        let deltaE = nextZ - currentZ; 
+
+        let prob = 1.0;
+        let accepted = false;
+        let badgeText = "";
+        let badgeClass = "";
+
+        if (deltaE > 0) {
+            // Better move -> Always Accept
+            currentX = nextX; currentY = nextY; currentZ = nextZ;
+            accepted = true;
+            badgeText = "Accepted (Uphill +ΔE)";
+            badgeClass = "badge-accept-good";
+        } else {
+            // Worse move -> Accept with Probability
+            prob = Math.exp(deltaE / temperature);
+            if (Math.random() < prob) {
+                currentX = nextX; currentY = nextY; currentZ = nextZ;
+                accepted = true;
+                badgeText = "Accepted (Bad Move via P)";
+                badgeClass = "badge-accept-bad";
+            } else {
+                accepted = false;
+                badgeText = "Rejected (Bad Move)";
+                badgeClass = "badge-reject";
+            }
+        }
+
+        // Temperature decay
+        temperature *= coolingRate;
+
+        // Fast Real-Time Plotly Update (Only updates the dots, doesn't reload the mountain)
+        if (accepted) {
+            pathX.push(currentX);
+            pathY.push(currentY);
+            pathZ.push(currentZ);
+            
+            // Update trail line
+            Plotly.restyle('plot', { x: [pathX], y: [pathY], z: [pathZ] }, [1]);
+            // Update big yellow head marker
+            Plotly.restyle('plot', { x: [[currentX]], y: [[currentY]], z: [[currentZ]] }, [2]);
+        }
+
+        // Real-time UI Text Updates
+        updateUI(currentX, currentY, currentZ, temperature, deltaE, prob, badgeText, badgeClass);
+    }
+
+    function updateUI(x, y, z, temp, deltaE, prob, badgeText, badgeClass) {
+        document.getElementById('currX').innerText = x.toFixed(2);
+        document.getElementById('currY').innerText = y.toFixed(2);
+        document.getElementById('currZ').innerText = z.toFixed(2);
+        document.getElementById('currT').innerText = temp.toFixed(2);
+        document.getElementById('currDeltaE').innerText = deltaE.toFixed(2);
+        document.getElementById('currProb').innerText = prob.toFixed(4);
+
+        updateBadge(badgeText, badgeClass);
+    }
+
+    function updateBadge(text, className) {
+        let badge = document.getElementById('actionBadge');
+        badge.innerText = text;
+        badge.className = "decision-badge " + className;
+    }
+</script>
+</body>
+</html>

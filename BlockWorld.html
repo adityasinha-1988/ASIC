@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blocks World: Local vs Global Heuristics</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px 18px;
+            overflow: hidden;
+        }
+        h1 { color: #2c3e50; text-align: center; font-size: 1.5em; margin-bottom: 2px; }
+        .description { text-align: center; font-size: 0.9em; color: #555; margin-bottom: 15px; }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.25fr 1fr;
+            gap: 15px;
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .panel {
+            background: white;
+            padding: 12px 16px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        
+        .panel-header {
+            font-size: 1.05em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 4px;
+        }
+
+        /* Heuristic Toggle Controls */
+        .heuristic-controls {
+            display: flex;
+            gap: 10px;
+            background: #e9ecef;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .radio-label {
+            flex: 1;
+            padding: 6px;
+            text-align: center;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            border: 2px solid transparent;
+            font-size: 0.85em;
+        }
+        .radio-label input { display: none; }
+        .radio-label.active { border-color: #3498db; background: #e1f0fa; color: #2980b9; }
+
+        .goal-bar {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-bottom: 8px;
+            font-size: 0.82em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Interactive Playboard Surface */
+        .table-surface {
+            border-bottom: 5px solid #8e44ad;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            width: 100%;
+            flex: 1;
+            padding-bottom: 4px;
+            background: #fafafa;
+            border-radius: 6px 6px 0 0;
+            min-height: 320px;
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column-reverse;
+            width: 65px;
+            height: 100%;
+            align-items: center;
+            justify-content: flex-start;
+            border: 2px dashed transparent;
+            transition: 0.2s;
+        }
+        .stack.drag-over {
+            border: 2px dashed #3498db;
+            background-color: rgba(52, 152, 219, 0.1);
+            border-radius: 5px;
+        }
+
+        .block {
+            position: relative;
+            width: 50px;
+            height: 35px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            border-radius: 4px;
+            margin-top: 2px;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.15);
+            transition: transform 0.1s;
+            user-select: none;
+        }
+        .block[draggable="true"] { cursor: grab; }
+        .block[draggable="true"]:active { cursor: grabbing; transform: scale(1.05); }
+        
+        /* 8 Block Colors */
+        .block-A { background-color: #e74c3c; } 
+        .block-B { background-color: #f1c40f; color: #222; } 
+        .block-C { background-color: #2ecc71; } 
+        .block-D { background-color: #3498db; } 
+        .block-E { background-color: #9b59b6; } 
+        .block-F { background-color: #e67e22; } 
+        .block-G { background-color: #1abc9c; } 
+        .block-H { background-color: #34495e; } 
+
+        /* Score Badges */
+        .score-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 900;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 1.5px solid #bdc3c7;
+            color: #333;
+        }
+        .badge-pos { color: #27ae60; border-color: #27ae60; }
+        .badge-neg { color: #c0392b; border-color: #c0392b; }
+        .badge-zero { color: #7f8c8d; border-color: #7f8c8d; }
+
+        .btn-controls { display: flex; gap: 8px; margin-top: 10px; }
+        .btn { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; font-size: 0.85em; transition: 0.2s; flex: 1;}
+        .btn-optima { background: #e67e22; }
+        .btn-optima:hover { background: #d35400; }
+        .btn-reset { background: #7f8c8d; }
+        .btn-reset:hover { background: #616a6b; }
+
+        /* Right Panel Elements */
+        .right-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+        .score-card {
+            background: #1e272e; color: white; border-radius: 8px; padding: 10px 14px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
+        }
+        .score-title { font-size: 0.9em; color: #d1d8e0; font-weight: 600; }
+        .score-value { font-size: 2.2em; font-weight: bold; color: #0fb9b1; line-height: 1; }
+
+        .log-box {
+            background: #1e272e; color: #d1d8e0; padding: 10px 12px;
+            font-family: 'Courier New', Courier, monospace; font-size: 0.83em;
+            border-radius: 8px; flex: 1; overflow-y: auto; line-height: 1.45;
+        }
+        .text-red { color: #ff3f34; } .text-green { color: #0be881; } .text-yellow { color: #ffd32a; font-weight: bold; }
+        .warning-card { background: rgba(255, 211, 42, 0.12); border-left: 3px solid #ffd32a; padding: 6px; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <h1>Blocks World: Local vs Global Heuristic</h1>
+    <p class="description">
+        Observe how the <b>Local Heuristic</b> gets trapped in a local optimum, while the <b>Global Heuristic</b> correctly dismantles incorrect structures.
+    </p>
+
+    <div class="dashboard-grid">
+        <div class="panel">
+            <div class="panel-header">Interactive Board</div>
+            
+            <div class="heuristic-controls">
+                <label class="radio-label active" id="lbl-local" onclick="setMode('LOCAL')">
+                    <input type="radio" name="hmode" checked> 1. Local Heuristic (Textbook Fig 3.1)
+                </label>
+                <label class="radio-label" id="lbl-global" onclick="setMode('GLOBAL')">
+                    <input type="radio" name="hmode"> 2. Global Heuristic (Solves Trap)
+                </label>
+            </div>
+
+            <div class="goal-bar">
+                <div><b>Goal:</b> [Table] ← A ← B ← C ← D ← E ← F ← G ← H</div>
+            </div>
+
+            <div class="table-surface" id="current-table"></div>
+
+            <div class="btn-controls">
+                <button class="btn btn-optima" onclick="loadFig31State()">Load Fig 3.1 Initial State (Stuck)</button>
+                <button class="btn btn-reset" onclick="loadGoalState()">Load Goal State</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="score-card">
+                <div class="score-title">Current Score $h(n)$</div>
+                <div class="score-value" id="live-score">0</div>
+            </div>
+
+            <div class="panel" style="flex: 1; min-height: 0;">
+                <div class="panel-header">Evaluation Log</div>
+                <div class="log-box" id="log-console">System Initialized...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Textbook Goal Support Dictionary (Table -> A -> B -> C -> D -> E -> F -> G -> H)
+        const goalSupports = { 'A': 'Table', 'B': 'A', 'C': 'B', 'D': 'C', 'E': 'D', 'F': 'E', 'G': 'F', 'H': 'G' };
+        
+        let state = [];
+        let draggedFromIndex = null; 
+        let heuristicMode = 'LOCAL';
+
+        function init() { loadFig31State(); }
+
+        function setMode(mode) {
+            heuristicMode = mode;
+            document.getElementById('lbl-local').classList.toggle('active', mode === 'LOCAL');
+            document.getElementById('lbl-global').classList.toggle('active', mode === 'GLOBAL');
+            renderBoard(); // Re-render to update badges and scores
+        }
+
+        // Textbook Fig 3.1 Initial State (Traps Local Heuristic)
+        function loadFig31State() {
+            state = [ ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'A'], [], [], [] ]; 
+            renderBoard();
+        }
+
+        function loadGoalState() {
+            state = [ ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], [], [], [] ]; 
+            renderBoard();
+        }
+
+        // Helper for Global Heuristic: Checks if entire structure under block is correct
+        function isSupportStructureCorrect(stack, blockIndex) {
+            for (let i = blockIndex; i >= 0; i--) {
+                let currBlock = stack[i];
+                let requiredSupport = goalSupports[currBlock];
+                let actualSupport = (i === 0) ? 'Table' : stack[i - 1];
+                if (actualSupport !== requiredSupport) return false;
+            }
+            return true;
+        }
+
+        function renderBoard() {
+            const tableDiv = document.getElementById('current-table');
+            tableDiv.innerHTML = '';
+            let totalScore = 0;
+            let logHTML = `<b>Evaluating in ${heuristicMode} Mode:</b><br><br>`;
+
+            state.forEach((stack, index) => {
+                const stackDiv = document.createElement('div');
+                stackDiv.className = 'stack';
+                stackDiv.dataset.index = index; 
+
+                // Drag Events
+                stackDiv.addEventListener('dragover', e => { e.preventDefault(); stackDiv.classList.add('drag-over'); });
+                stackDiv.addEventListener('dragleave', () => stackDiv.classList.remove('drag-over'));
+                stackDiv.addEventListener('drop', e => { e.preventDefault(); stackDiv.classList.remove('drag-over'); handleDrop(index); });
+
+                stack.forEach((block, blockIndex) => {
+                    let badgeScore = 0;
+                    let badgeClass = '';
+
+                    // === HEURISTIC CALCULATION ===
+                    if (heuristicMode === 'LOCAL') {
+                        // Local: +1 if immediate support is correct, -1 otherwise.
+                        let actualSupport = (blockIndex === 0) ? 'Table' : stack[blockIndex - 1];
+                        let isCorrect = (actualSupport === goalSupports[block]);
+                        
+                        badgeScore = isCorrect ? 1 : -1;
+                        badgeClass = isCorrect ? 'badge-pos' : 'badge-neg';
+                        totalScore += badgeScore;
+                        
+                    } else if (heuristicMode === 'GLOBAL') {
+                        // Global: For each block, add/subtract the NUMBER OF BLOCKS below it based on full structure correctness
+                        let blocksBelow = blockIndex; // E.g., index 0 has 0 blocks below.
+                        let isCorrectStructure = isSupportStructureCorrect(stack, blockIndex);
+                        
+                        badgeScore = isCorrectStructure ? blocksBelow : -blocksBelow;
+                        
+                        if (blocksBelow === 0) badgeClass = 'badge-zero';
+                        else badgeClass = isCorrectStructure ? 'badge-pos' : 'badge-neg';
+                        
+                        totalScore += badgeScore;
+                    }
+
+                    // Create Block DOM
+                    const bDiv = document.createElement('div');
+                    bDiv.className = `block block-${block}`;
+                    
+                    // Format badge text (+/- sign)
+                    let badgeText = (badgeScore > 0 ? '+' : '') + badgeScore;
+                    bDiv.innerHTML = `${block}<div class="score-badge ${badgeClass}">${badgeText}</div>`;
+
+                    if (blockIndex === stack.length - 1) {
+                        bDiv.draggable = true;
+                        bDiv.addEventListener('dragstart', () => { draggedFromIndex = index; setTimeout(() => bDiv.style.opacity = '0.5', 0); });
+                        bDiv.addEventListener('dragend', () => bDiv.style.opacity = '1');
+                    }
+                    stackDiv.appendChild(bDiv);
+                });
+                tableDiv.appendChild(stackDiv);
+            });
+
+            // Update Text Logs based on Textbook state
+            document.getElementById('live-score').innerText = totalScore;
+            
+            if (heuristicMode === 'LOCAL') {
+                logHTML += `Target Goal Score: <b>+8</b><br>`;
+                logHTML += `Local Heuristic check karta hai sirf <b>immediate support</b>.<br><br>`;
+                
+                if (totalScore === 8) logHTML += `<span class="text-yellow">🎉 GOAL STATE REACHED!</span>`;
+                else if (totalScore === 4 && state[0].length === 8 && state[0][7] === 'A') {
+                    logHTML += `<span class="text-yellow">Initial State (Score: 4).</span> Move A to the table to increase score to 6.`;
+                } else if (totalScore === 6 && state[1].length === 1 && state[1][0] === 'A' && state[0][6] === 'H') {
+                    logHTML += `<div class="warning-card"><span class="text-red">⚠️ LOCAL MAXIMA TRAP!</span><br>Score is 6. Now, moving top block 'H' to any other stack will result in a score of 4. Hill Climbing gets stuck here because every move looks like a downgrade!</div>`;
+                }
+            } else {
+                logHTML += `Target Goal Score: <b>+28</b><br>`;
+                logHTML += `Global Heuristic check karta hai <b>entire support structure</b> bottom tak. Correct hai toh blocks below add hote hain, warna subtract hote hain.<br><br>`;
+                
+                if (totalScore === 28) logHTML += `<span class="text-yellow">🎉 GOAL STATE REACHED!</span>`;
+                else if (totalScore === -28) {
+                    logHTML += `Initial State (Score: -28). A has 7 wrong blocks under it.<br>Move 'A' to table.`;
+                } else if (totalScore === -21 && state[1].length === 1 && state[1][0] === 'A') {
+                    logHTML += `<span class="text-green">Score improved to -21!</span><br>Now, moving 'H' to table yields score <b>-15</b>. Moving 'H' to 'A' yields <b>-16</b>. <br><br>The algorithm is successfully forcing you to dismantle the incorrect stack block by block! (No local optima trap).`;
+                }
+            }
+
+            document.getElementById('log-console').innerHTML = logHTML;
+        }
+
+        function handleDrop(droppedToIndex) {
+            if (draggedFromIndex === null || draggedFromIndex === droppedToIndex) return;
+            let movingBlock = state[draggedFromIndex].pop();
+            state[droppedToIndex].push(movingBlock);
+            renderBoard();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

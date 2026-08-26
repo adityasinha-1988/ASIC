@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Search Master - BFS, DFS, UCS, IDS, Beam</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        canvas { background-color: #ffffff; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); width: 100%; height: 100%; }
+        .log-container { overflow-y: auto; scroll-behavior: smooth; }
+        /* Custom scrollbar for aesthetic look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col p-2 md:p-3 lg:max-w-[1600px] mx-auto w-full overflow-hidden">
+
+    <!-- Top Navigation & Controls -->
+    <header class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 flex flex-col xl:flex-row justify-between items-center gap-3 shrink-0 mb-3 z-50">
+        <div>
+            <h1 class="text-xl font-extrabold text-gray-800">Romania Map: AI Search Algorithms 🗺️</h1>
+            <p class="text-xs text-gray-500 font-medium">Observe the Algorithm's Decision Process (Map + Data Structure + Tree)</p>
+        </div>
+        
+        <div class="flex flex-wrap justify-center gap-1.5 bg-gray-100 p-1.5 rounded-lg">
+            <button id="btn-bfs" onclick="setAlgorithm('BFS')" class="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-md shadow-sm transition-all">BFS</button>
+            <button id="btn-dfs" onclick="setAlgorithm('DFS')" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all">DFS</button>
+            <button id="btn-ucs" onclick="setAlgorithm('UCS')" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all">UCS</button>
+            <button id="btn-ids" onclick="setAlgorithm('IDS')" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all">Iterative Deepening (IDS)</button>
+            <button id="btn-beam" onclick="setAlgorithm('BEAM')" class="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-md transition-all">Beam Search (k=2)</button>
+        </div>
+
+        <div class="flex gap-2">
+            <button id="btn-step" onclick="nextStep()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm transition-all text-sm flex items-center gap-1">
+                Next Step ⏭️
+            </button>
+            <button id="btn-play" onclick="togglePlay()" class="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg shadow-sm transition-all text-sm flex items-center gap-1">
+                Auto ▶️
+            </button>
+            <button onclick="resetSearch()" class="px-4 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg shadow-sm transition-all text-sm border border-red-200">
+                Reset 🔄
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 overflow-hidden">
+        
+        <!-- Left Panel: Map & Tree (Canvas Area) -->
+        <div class="lg:col-span-8 flex flex-col gap-3 h-full overflow-hidden">
+            
+            <!-- Map Section -->
+            <div class="flex-1 relative rounded-xl min-h-[40%] flex flex-col">
+                <div class="absolute top-2 left-2 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 font-bold text-gray-700 text-xs flex justify-between items-center gap-4">
+                    <span>🌍 Graph (Map)</span>
+                    <span id="status-badge" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px]">Ready</span>
+                    <span id="limit-badge" class="hidden px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold">Limit: 0</span>
+                </div>
+                <!-- Legend -->
+                <div class="absolute bottom-2 left-2 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 text-[10px] flex gap-2">
+                    <span class="text-blue-500 font-bold">● In Frontier</span>
+                    <span class="text-yellow-600 font-bold">● Current Node</span>
+                    <span class="text-gray-400 font-bold">● Visited</span>
+                    <span class="text-green-600 font-bold">● Final Path</span>
+                </div>
+                <canvas id="mapCanvas"></canvas>
+            </div>
+
+            <!-- Tree Section -->
+            <div class="flex-1 relative rounded-xl min-h-[40%] flex flex-col">
+                <div class="absolute top-2 left-2 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 font-bold text-gray-700 text-xs">
+                    🌳 Search Tree Generation
+                </div>
+                <canvas id="treeCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Panel: Data Structures & Logs -->
+        <div class="lg:col-span-4 flex flex-col gap-3 h-full overflow-hidden">
+            
+            <!-- Data Structure (Frontier) Vis -->
+            <div class="bg-gray-800 rounded-xl shadow-sm border border-gray-700 flex flex-col shrink-0">
+                <div class="p-2 border-b border-gray-700 flex justify-between items-center bg-gray-900 rounded-t-xl">
+                    <span class="font-bold text-gray-200 text-sm" id="ds-title">Queue (Frontier)</span>
+                    <span class="text-[10px] font-mono bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded border border-indigo-700" id="ds-type">FIFO</span>
+                </div>
+                <div class="p-2">
+                    <p class="text-xs text-gray-400 mb-2 leading-tight" id="ds-desc">Nodes are waiting here to be processed.</p>
+                    <div id="frontier-display" class="font-mono text-sm bg-black text-green-400 p-2 rounded max-h-[100px] overflow-y-auto break-words flex flex-wrap gap-1.5">
+                        <!-- Frontier boxes will go here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution Logs -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
+                <div class="p-2 bg-gray-50 border-b border-gray-200">
+                    <span class="font-bold text-gray-700 text-sm">📝 Live Execution Log</span>
+                </div>
+                <div id="log-container" class="log-container p-3 flex-1 text-[11px] md:text-xs text-gray-600 space-y-2">
+                    <!-- Logs appear here -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // --- Graph Data & Coordinates ---
+        const nodes = {
+            'Arad': { x: 10, y: 30 }, 'Zerind': { x: 15, y: 10 }, 'Oradea': { x: 28, y: 8 },
+            'Sibiu': { x: 35, y: 35 }, 'Timisoara': { x: 10, y: 55 }, 'Lugoj': { x: 25, y: 65 },
+            'Mehadia': { x: 25, y: 80 }, 'Drobeta': { x: 25, y: 95 }, 'Craiova': { x: 50, y: 90 },
+            'RimnicuVilcea': { x: 45, y: 50, label: 'R. Vilcea' }, 'Fagaras': { x: 60, y: 35 },
+            'Pitesti': { x: 65, y: 65 }, 'Bucharest': { x: 85, y: 70 }, 'Giurgiu': { x: 80, y: 95 },
+            'Urziceni': { x: 95, y: 55 }
+        };
+
+        const edges = [
+            { from: 'Arad', to: 'Zerind', cost: 75 }, { from: 'Arad', to: 'Sibiu', cost: 140 },
+            { from: 'Arad', to: 'Timisoara', cost: 118 }, { from: 'Zerind', to: 'Oradea', cost: 71 },
+            { from: 'Oradea', to: 'Sibiu', cost: 151 }, { from: 'Timisoara', to: 'Lugoj', cost: 111 },
+            { from: 'Lugoj', to: 'Mehadia', cost: 70 }, { from: 'Mehadia', to: 'Drobeta', cost: 75 },
+            { from: 'Drobeta', to: 'Craiova', cost: 120 }, { from: 'Craiova', to: 'RimnicuVilcea', cost: 146 },
+            { from: 'Craiova', to: 'Pitesti', cost: 138 }, { from: 'Sibiu', to: 'RimnicuVilcea', cost: 80 },
+            { from: 'Sibiu', to: 'Fagaras', cost: 99 }, { from: 'RimnicuVilcea', to: 'Pitesti', cost: 97 },
+            { from: 'Fagaras', to: 'Bucharest', cost: 211 }, { from: 'Pitesti', to: 'Bucharest', cost: 101 },
+            { from: 'Bucharest', to: 'Giurgiu', cost: 90 }, { from: 'Bucharest', to: 'Urziceni', cost: 85 }
+        ];
+
+        // Heuristic values (Straight Line Distance to Bucharest)
+        const heuristics = {
+            'Arad': 366, 'Bucharest': 0, 'Craiova': 160, 'Drobeta': 242, 'Fagaras': 176,
+            'Giurgiu': 77, 'Lugoj': 244, 'Mehadia': 241, 'Oradea': 380, 'Pitesti': 100,
+            'RimnicuVilcea': 193, 'Sibiu': 253, 'Timisoara': 329, 'Urziceni': 80, 'Zerind': 374
+        };
+
+        // --- Adjacency List Construction ---
+        const adjList = {};
+        for (let n in nodes) adjList[n] = [];
+        for (let e of edges) {
+            adjList[e.from].push({ node: e.to, cost: e.cost });
+            adjList[e.to].push({ node: e.from, cost: e.cost });
+        }
+
+        // --- State Variables ---
+        let currentAlgorithm = 'BFS';
+        let frontier = []; 
+        let visited = new Set(); 
+        let currentProcessingNode = null;
+        let finalPath = [];
+        let searchStatus = 'ready'; 
+        let autoPlayInterval = null;
+        let stepCount = 0;
+        
+        let treeData = []; 
+        let treeNodeCounter = 0;
+
+        // Special Variables for IDS & Beam
+        let currentDepthLimit = 0;
+        let beamWidth = 2; // k=2
+
+        const startNode = 'Arad';
+        const goalNode = 'Bucharest';
+
+        const mapCanvas = document.getElementById('mapCanvas');
+        const mapCtx = mapCanvas.getContext('2d');
+        const treeCanvas = document.getElementById('treeCanvas');
+        const treeCtx = treeCanvas.getContext('2d');
+
+        function init() {
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
+            setAlgorithm('BFS');
+        }
+
+        function resizeCanvases() {
+            const mRect = mapCanvas.getBoundingClientRect();
+            mapCanvas.width = mRect.width * 2; mapCanvas.height = mRect.height * 2; mapCtx.scale(2, 2);
+            
+            const tRect = treeCanvas.getBoundingClientRect();
+            treeCanvas.width = tRect.width * 2; treeCanvas.height = tRect.height * 2; treeCtx.scale(2, 2);
+
+            drawMap(); drawTree();
+        }
+
+        function getLabel(id) { return nodes[id].label || id; }
+
+        function setAlgorithm(algo) {
+            currentAlgorithm = algo;
+            
+            // Buttons Update
+            ['bfs', 'dfs', 'ucs', 'ids', 'beam'].forEach(a => {
+                document.getElementById(`btn-${a}`).className = `px-3 py-1.5 text-xs font-bold rounded-md transition-all ${algo===a.toUpperCase()?'bg-blue-600 text-white shadow-sm':'text-gray-600 hover:bg-gray-200'}`;
+            });
+            
+            const dsTitle = document.getElementById('ds-title');
+            const dsType = document.getElementById('ds-type');
+            const dsDesc = document.getElementById('ds-desc');
+            const limitBadge = document.getElementById('limit-badge');
+
+            limitBadge.classList.add('hidden'); // Default hide
+
+            if(algo === 'BFS') {
+                dsTitle.innerText = "Queue (Frontier)"; dsType.innerText = "FIFO"; dsDesc.innerText = "BFS checks nodes level by level. First in, first out.";
+            } else if(algo === 'DFS') {
+                dsTitle.innerText = "Stack (Frontier)"; dsType.innerText = "LIFO"; dsDesc.innerText = "DFS dives deep by expanding the most recently discovered node first.";
+            } else if (algo === 'UCS') {
+                dsTitle.innerText = "Priority Queue"; dsType.innerText = "Min Cost First"; dsDesc.innerText = "UCS always expands the path with the lowest cumulative cost. It guarantees an optimal solution.";
+            } else if (algo === 'IDS') {
+                dsTitle.innerText = "Stack (Depth Limited)"; dsType.innerText = "LIFO with Limits"; dsDesc.innerText = "Iterative Deepening: Runs DFS with a strict depth limit. Increases limit and restarts if goal isn't found.";
+                limitBadge.classList.remove('hidden');
+            } else if (algo === 'BEAM') {
+                dsTitle.innerText = "Priority Queue (Restricted)"; dsType.innerText = `Top ${beamWidth} Nodes only`; dsDesc.innerText = "Beam Search: At each level, it keeps only the Top 2 best options (by heuristic) and discards the rest.";
+            }
+            
+            // Start fresh entirely
+            currentDepthLimit = 0; 
+            stepCount = 0;
+            document.getElementById('log-container').innerHTML = '';
+            setupSearchState();
+        }
+
+        function setupSearchState(isIDSRestart = false) {
+            treeNodeCounter = 0;
+            let rootTreeId = 't_' + treeNodeCounter++;
+            
+            frontier = [{ id: startNode, path_cost: 0, parent: null, depth: 0, treeId: rootTreeId }];
+            visited = new Set();
+            currentProcessingNode = null;
+            finalPath = [];
+            searchStatus = 'running';
+            
+            treeData = [{ treeId: rootTreeId, id: startNode, parentTreeId: null, depth: 0, cost: 0 }];
+
+            if (!isIDSRestart) {
+                logMsg(`🚀 <b>New Search Started:</b> Algorithm = ${currentAlgorithm}. Target = Bucharest.`, 'text-indigo-600 text-sm');
+            }
+
+            if (currentAlgorithm === 'IDS') {
+                document.getElementById('limit-badge').innerText = `Limit: ${currentDepthLimit}`;
+            }
+
+            updateUI(); drawMap(); drawTree();
+        }
+
+        function resetSearch() {
+            stopAutoPlay();
+            currentDepthLimit = 0;
+            stepCount = 0;
+            document.getElementById('log-container').innerHTML = '';
+            setupSearchState();
+        }
+
+        function nextStep() {
+            if (searchStatus !== 'running') return;
+            stepCount++;
+
+            // --- EMPTY FRONTIER CHECK ---
+            if (frontier.length === 0) {
+                if (currentAlgorithm === 'IDS') {
+                    currentDepthLimit++;
+                    logMsg(`🔄 <b>Notice:</b> Goal not found at limit ${currentDepthLimit-1}. Increasing limit to <b>${currentDepthLimit}</b> and restarting search!`, 'text-purple-600 font-bold bg-purple-50 p-1 rounded');
+                    setupSearchState(true); 
+                    return;
+                } else {
+                    searchStatus = 'failed';
+                    logMsg(`❌ Frontier exhausted. Goal could not be found!`, 'text-red-600 font-bold');
+                    updateUI(); drawMap(); drawTree(); stopAutoPlay(); return;
+                }
+            }
+
+            // --- 1. POP from Frontier ---
+            let poppedObj;
+            if (currentAlgorithm === 'BFS') {
+                poppedObj = frontier.shift(); 
+            } else if (currentAlgorithm === 'DFS' || currentAlgorithm === 'IDS') {
+                poppedObj = frontier.pop(); 
+            } else if (currentAlgorithm === 'UCS') {
+                frontier.sort((a, b) => a.path_cost - b.path_cost);
+                poppedObj = frontier.shift();
+            } else if (currentAlgorithm === 'BEAM') {
+                // Beam uses Heuristic h(n)
+                frontier.sort((a, b) => heuristics[a.id] - heuristics[b.id]);
+                poppedObj = frontier.shift();
+            }
+
+            currentProcessingNode = poppedObj;
+            visited.add(poppedObj.id);
+
+            let msg = `⚡ <b>Step ${stepCount}:</b> Popped <b>${getLabel(poppedObj.id)}</b> from the frontier. `;
+            if(currentAlgorithm === 'UCS') msg += `(Cost: ${poppedObj.path_cost})`;
+            if(currentAlgorithm === 'BEAM') msg += `(Heuristic h=${heuristics[poppedObj.id]})`;
+            logMsg(msg, 'text-gray-800 font-medium');
+
+            // --- 2. GOAL TEST ---
+            if (poppedObj.id === goalNode) {
+                searchStatus = 'success';
+                let curr = poppedObj;
+                while(curr) {
+                    finalPath.unshift(curr.id);
+                    if(curr.parentTreeId) {
+                        let p = treeData.find(t => t.treeId === curr.parentTreeId);
+                        curr = { id: p.id, parentTreeId: p.parentTreeId };
+                    } else curr = null;
+                }
+                logMsg(`🎉 <b>GOAL FOUND!</b> Reached Bucharest. Total Cost = ${poppedObj.path_cost} km.`, 'text-green-600 text-sm font-bold border border-green-300 bg-green-50 p-2 rounded mt-2');
+                updateUI(); drawMap(); drawTree(); stopAutoPlay(); return;
+            }
+
+            // --- 3. CHECK IDS DEPTH LIMIT ---
+            if (currentAlgorithm === 'IDS' && poppedObj.depth >= currentDepthLimit) {
+                logMsg(`🛑 Node <b>${getLabel(poppedObj.id)}</b> will not be expanded as it reached the <b>Depth Limit (${currentDepthLimit})</b>. Backtracking.`, 'text-orange-600');
+                updateUI(); drawMap(); drawTree();
+                return; // Skip Expansion
+            }
+
+            // --- 4. EXPAND NEIGHBORS ---
+            let neighbors = adjList[poppedObj.id];
+            let processList = [...neighbors];
+            
+            // Visual ordering for tree
+            if(currentAlgorithm === 'DFS' || currentAlgorithm === 'IDS') {
+                processList.sort((a,b) => b.node.localeCompare(a.node)); // Reverse alpha for stack
+            } else {
+                processList.sort((a,b) => a.node.localeCompare(b.node)); // Alpha for others
+            }
+
+            let addedLog = [];
+            for (let edge of processList) {
+                let childId = edge.node;
+                let newCost = poppedObj.path_cost + edge.cost;
+
+                let shouldAdd = false;
+
+                if (currentAlgorithm === 'UCS') {
+                    if (!visited.has(childId)) {
+                        let existIdx = frontier.findIndex(f => f.id === childId);
+                        if (existIdx === -1) {
+                            shouldAdd = true;
+                        } else if (newCost < frontier[existIdx].path_cost) {
+                            frontier[existIdx].path_cost = newCost;
+                            frontier[existIdx].parentTreeId = poppedObj.treeId;
+                            logMsg(`💡 Found a cheaper path to <b>${getLabel(childId)}</b>! Cost updated to ${newCost}.`, 'text-orange-500 text-[11px]');
+                            let tNode = treeData.find(t => t.treeId === frontier[existIdx].treeId);
+                            if(tNode) { tNode.parentTreeId = poppedObj.treeId; tNode.cost = newCost; }
+                        }
+                    }
+                } 
+                else if (currentAlgorithm === 'BEAM') {
+                    // Beam doesn't strict check visited if we strictly keep to K, but normally we avoid loops
+                    if (!visited.has(childId)) shouldAdd = true;
+                }
+                else { // BFS, DFS, IDS
+                    // Only add if not visited and not currently in frontier
+                    if (!visited.has(childId) && !frontier.some(f => f.id === childId)) {
+                        shouldAdd = true;
+                    }
+                }
+
+                if (shouldAdd) {
+                    let childTreeId = 't_' + treeNodeCounter++;
+                    frontier.push({
+                        id: childId, path_cost: newCost, parent: poppedObj.id, 
+                        depth: poppedObj.depth + 1, treeId: childTreeId, parentTreeId: poppedObj.treeId
+                    });
+                    
+                    treeData.push({
+                        treeId: childTreeId, id: childId, parentTreeId: poppedObj.treeId,
+                        depth: poppedObj.depth + 1, cost: newCost
+                    });
+                    
+                    let nodeName = getLabel(childId);
+                    if(currentAlgorithm === 'BEAM') nodeName += `(h=${heuristics[childId]})`;
+                    addedLog.push(nodeName);
+                }
+            }
+
+            // --- BEAM SEARCH TRUNCATION ---
+            if (currentAlgorithm === 'BEAM' && frontier.length > beamWidth) {
+                // Sort by heuristic (h)
+                frontier.sort((a, b) => heuristics[a.id] - heuristics[b.id]);
+                let removed = frontier.splice(beamWidth); // Keep only top 'k'
+                let removedNames = removed.map(r => getLabel(r.id)).join(', ');
+                logMsg(`✂️ <b>Beam Pruning:</b> Kept only the top ${beamWidth} nodes. Discarded: [${removedNames}]`, 'text-red-500 italic text-[11px]');
+            }
+
+            if (addedLog.length > 0) {
+                if(currentAlgorithm === 'DFS' || currentAlgorithm === 'IDS') addedLog.reverse(); 
+                logMsg(`🔍 Expanded <b>${getLabel(poppedObj.id)}</b>. Added to frontier: [${addedLog.join(', ')}]`, 'text-gray-600');
+            } else {
+                if(currentAlgorithm !== 'IDS' || poppedObj.depth < currentDepthLimit) {
+                    logMsg(`🛑 <b>${getLabel(poppedObj.id)}</b> is a dead-end (no new unvisited neighbors).`, 'text-yellow-600');
+                    if(currentAlgorithm === 'DFS' || currentAlgorithm === 'IDS') {
+                        logMsg(`↩️ Backtracking: Returning to the previous node.`, 'text-purple-600 italic text-[11px]');
+                    }
+                }
+            }
+
+            updateUI(); drawMap(); drawTree();
+        }
+
+        function logMsg(text, classes) {
+            const div = document.createElement('div');
+            div.className = `border-l-2 border-gray-300 pl-2 py-0.5 ${classes}`;
+            div.innerHTML = text;
+            const container = document.getElementById('log-container');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateUI() {
+            const display = document.getElementById('frontier-display');
+            display.innerHTML = '';
+            
+            if (frontier.length === 0) {
+                display.innerHTML = `<span class="text-gray-500">[ Empty ]</span>`;
+            } else {
+                let showList = [...frontier];
+                if(currentAlgorithm === 'UCS') showList.sort((a,b) => a.path_cost - b.path_cost);
+                if(currentAlgorithm === 'BEAM') showList.sort((a,b) => heuristics[a.id] - heuristics[b.id]);
+
+                showList.forEach((f, index) => {
+                    let isTarget = false;
+                    if(currentAlgorithm === 'BFS' && index === 0) isTarget = true;
+                    if((currentAlgorithm === 'DFS' || currentAlgorithm === 'IDS') && index === showList.length-1) isTarget = true;
+                    if((currentAlgorithm === 'UCS' || currentAlgorithm === 'BEAM') && index === 0) isTarget = true;
+
+                    let div = document.createElement('div');
+                    div.className = `px-1.5 py-0.5 rounded text-xs flex items-center gap-1 border ${isTarget ? 'border-yellow-400 bg-yellow-900 text-yellow-300 animate-pulse' : 'border-gray-600 bg-gray-800'}`;
+                    
+                    let val = currentAlgorithm === 'UCS' ? `c=${f.path_cost}` : (currentAlgorithm === 'BEAM' ? `h=${heuristics[f.id]}` : `d=${f.depth}`);
+                    div.innerHTML = `<span>${getLabel(f.id)}</span> <span class="text-[9px] text-gray-400">(${val})</span>`;
+                    display.appendChild(div);
+                });
+            }
+
+            const badge = document.getElementById('status-badge');
+            const btnStep = document.getElementById('btn-step');
+            if (searchStatus === 'success') {
+                badge.className = "px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[10px]"; badge.innerText = "Goal Reached!";
+                btnStep.disabled = true; btnStep.classList.add('opacity-50', 'cursor-not-allowed');
+            } else if (searchStatus === 'failed') {
+                badge.className = "px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px]"; badge.innerText = "Failed";
+                btnStep.disabled = true; btnStep.classList.add('opacity-50');
+            } else {
+                badge.className = "px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px]"; badge.innerText = "Running";
+                btnStep.disabled = false; btnStep.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('btn-play');
+            if (autoPlayInterval) {
+                stopAutoPlay();
+            } else {
+                if(searchStatus !== 'running') resetSearch();
+                btn.innerHTML = "Pause ⏸️"; btn.classList.replace('bg-green-500', 'bg-orange-500');
+                autoPlayInterval = setInterval(nextStep, 1000);
+            }
+        }
+        function stopAutoPlay() {
+            clearInterval(autoPlayInterval); autoPlayInterval = null;
+            const btn = document.getElementById('btn-play');
+            btn.innerHTML = "Auto ▶️"; btn.classList.replace('bg-orange-500', 'bg-green-500');
+        }
+
+        // --- Drawing Map ---
+        function drawMap() {
+            const w = mapCanvas.getBoundingClientRect().width;
+            const h = mapCanvas.getBoundingClientRect().height;
+            mapCtx.clearRect(0, 0, w, h);
+
+            const getX = (p) => (p / 100) * (w - 40) + 20;
+            const getY = (p) => (p / 100) * (h - 40) + 20;
+
+            // 1. Draw Edges
+            mapCtx.lineWidth = 2;
+            for (let edge of edges) {
+                const sPos = nodes[edge.from]; const ePos = nodes[edge.to];
+                let isPath = searchStatus === 'success' && finalPath.includes(edge.from) && finalPath.includes(edge.to) && Math.abs(finalPath.indexOf(edge.from) - finalPath.indexOf(edge.to)) === 1;
+
+                mapCtx.beginPath();
+                mapCtx.moveTo(getX(sPos.x), getY(sPos.y)); mapCtx.lineTo(getX(ePos.x), getY(ePos.y));
+                
+                if (isPath) {
+                    mapCtx.strokeStyle = '#16a34a'; // Green highlighted path
+                    mapCtx.lineWidth = 4;
+                } else {
+                    mapCtx.strokeStyle = '#cbd5e1'; // Light gray
+                    mapCtx.lineWidth = 2;
+                }
+                mapCtx.stroke();
+
+                // Draw PROMINENT Cost label on the edges
+                const mx = (getX(sPos.x) + getX(ePos.x))/2; 
+                const my = (getY(sPos.y) + getY(ePos.y))/2;
+                
+                mapCtx.fillStyle = isPath ? '#16a34a' : '#ffffff';
+                mapCtx.strokeStyle = isPath ? '#16a34a' : '#94a3b8';
+                mapCtx.lineWidth = 1;
+                
+                mapCtx.beginPath(); 
+                if (mapCtx.roundRect) {
+                    mapCtx.roundRect(mx - 14, my - 8, 28, 16, 4);
+                } else {
+                    mapCtx.rect(mx - 14, my - 8, 28, 16);
+                }
+                mapCtx.fill(); 
+                mapCtx.stroke();
+                
+                mapCtx.font = 'bold 10px Arial'; 
+                mapCtx.fillStyle = isPath ? '#ffffff' : '#1e293b'; 
+                mapCtx.textAlign = 'center'; 
+                mapCtx.textBaseline = 'middle';
+                mapCtx.fillText(edge.cost, mx, my);
+            }
+
+            // 2. Draw Nodes
+            for (let id in nodes) {
+                const x = getX(nodes[id].x); const y = getY(nodes[id].y);
+                let fill = '#f8fafc', stroke = '#94a3b8', text = '#334155';
+
+                if (searchStatus === 'success' && finalPath.includes(id)) { fill = '#22c55e'; stroke = '#15803d'; text = '#ffffff'; }
+                else if (currentProcessingNode && currentProcessingNode.id === id) { fill = '#eab308'; stroke = '#854d0e'; text = '#ffffff'; }
+                else if (frontier.some(f => f.id === id)) { fill = '#3b82f6'; stroke = '#1d4ed8'; text = '#ffffff'; }
+                else if (visited.has(id)) { fill = '#94a3b8'; stroke = '#475569'; text = '#ffffff'; }
+
+                mapCtx.beginPath(); mapCtx.arc(x, y, 12, 0, 2*Math.PI);
+                mapCtx.fillStyle = fill; mapCtx.fill();
+                mapCtx.lineWidth = 2; mapCtx.strokeStyle = stroke; mapCtx.stroke();
+
+                if(id === startNode || id === goalNode) {
+                    mapCtx.beginPath(); mapCtx.arc(x,y, 16, 0, 2*Math.PI); mapCtx.strokeStyle = id===startNode?'#22c55e':'#ef4444'; mapCtx.setLineDash([4,2]); mapCtx.stroke(); mapCtx.setLineDash([]);
+                }
+
+                mapCtx.font = 'bold 10px Arial'; mapCtx.fillStyle = '#0f172a'; mapCtx.fillText(getLabel(id), x, y + 18);
+            }
+        }
+
+        // --- Drawing Tree dynamically ---
+        function drawTree() {
+            const w = treeCanvas.getBoundingClientRect().width;
+            const h = treeCanvas.getBoundingClientRect().height;
+            treeCtx.clearRect(0, 0, w, h);
+
+            if (treeData.length === 0) return;
+
+            let maxDepth = Math.max(...treeData.map(t => t.depth));
+            let levelHeight = Math.min(50, (h - 40) / (maxDepth || 1));
+            if(levelHeight < 30) levelHeight = 30;
+
+            let depthGroups = [];
+            treeData.forEach(t => {
+                if(!depthGroups[t.depth]) depthGroups[t.depth] = [];
+                depthGroups[t.depth].push(t);
+            });
+
+            depthGroups.forEach((group, d) => {
+                let spacing = w / (group.length + 1);
+                group.forEach((node, i) => {
+                    node.x = spacing * (i + 1);
+                    node.y = 20 + (d * levelHeight);
+                });
+            });
+
+            treeCtx.lineWidth = 1.5;
+            treeData.forEach(node => {
+                if (node.parentTreeId) {
+                    let parent = treeData.find(t => t.treeId === node.parentTreeId);
+                    if(parent) {
+                        let isFinal = searchStatus === 'success' && finalPath.includes(node.id) && finalPath.includes(parent.id);
+                        treeCtx.beginPath(); treeCtx.moveTo(parent.x, parent.y); treeCtx.lineTo(node.x, node.y);
+                        treeCtx.strokeStyle = isFinal ? '#16a34a' : '#cbd5e1';
+                        treeCtx.lineWidth = isFinal ? 3 : 1.5; treeCtx.stroke();
+                    }
+                }
+            });
+
+            treeData.forEach(node => {
+                let isFrontier = frontier.some(f => f.treeId === node.treeId);
+                let isCurrent = currentProcessingNode && currentProcessingNode.treeId === node.treeId;
+                let isVisited = !isFrontier && !isCurrent && visited.has(node.id);
+                let isPath = searchStatus === 'success' && finalPath.includes(node.id);
+
+                let fill = '#f8fafc', stroke = '#cbd5e1';
+                if(isPath) { fill = '#22c55e'; stroke = '#15803d'; }
+                else if(isCurrent) { fill = '#eab308'; stroke = '#854d0e'; }
+                else if(isFrontier) { fill = '#3b82f6'; stroke = '#1d4ed8'; }
+                else if(isVisited) { fill = '#94a3b8'; stroke = '#475569'; }
+
+                treeCtx.beginPath(); treeCtx.arc(node.x, node.y, 10, 0, 2*Math.PI);
+                treeCtx.fillStyle = fill; treeCtx.fill();
+                treeCtx.lineWidth = 1.5; treeCtx.strokeStyle = stroke; treeCtx.stroke();
+
+                treeCtx.font = 'bold 9px Arial'; treeCtx.fillStyle = fill==='#f8fafc'?'#334155':'#ffffff';
+                treeCtx.textAlign = 'center'; treeCtx.textBaseline = 'middle';
+                treeCtx.fillText(node.id.substring(0,2), node.x, node.y);
+
+                let extra = '';
+                if(currentAlgorithm === 'BEAM') extra = `h=${heuristics[node.id]}`;
+                else if (currentAlgorithm === 'UCS') extra = `c=${node.cost}`;
+                
+                if (extra !== '') {
+                    treeCtx.font = '8px monospace'; treeCtx.fillStyle = '#b91c1c';
+                    treeCtx.fillText(extra, node.x, node.y + 16);
+                }
+            });
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
